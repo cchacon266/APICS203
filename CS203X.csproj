@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net6.0</TargetFramework>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.Extensions.Logging" Version="5.0.0" />
+		<PackageReference Include="System.IO.Ports" Version="7.0.0" />
+		<!-- Añade aquí la referencia a CSLibrary si está disponible en NuGet -->
+		<!-- <PackageReference Include="CSLibrary" Version="<version_number>" /> -->
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="CSLibrary">
+			<HintPath>..\CS463-203X-468XJ-PC-Callback-Unified-SDK-App\CSL RFID Demo Apps\Release Libraries\NET4\CSLibrary.dll</HintPath>
+		</Reference>
+		<Reference Include="CSLibrary.Data.SQLite">
+			<HintPath>NET4\CSLibrary.Data.SQLite.dll</HintPath>
+		</Reference>
+		<Reference Include="CSLibrary.Diagnostics">
+			<HintPath>NET4\CSLibrary.Diagnostics.dll</HintPath>
+		</Reference>
+		<Reference Include="CSLibrary.Windows">
+			<HintPath>NET4\CSLibrary.Windows.dll</HintPath>
+		</Reference>
+		<Reference Include="FileWriteMonitor">
+			<HintPath>NET4\FileWriteMonitor.dll</HintPath>
+		</Reference>
+	</ItemGroup>
+
+	<!-- Eliminar inclusiones explícitas de archivos Compile -->
+	<!-- No es necesario incluir estos archivos explícitamente -->
+	<!--
+  <ItemGroup>
+    <Compile Include="Controllers\ReaderController.cs" />
+    <Compile Include="Models\GpioRequest.cs" />
+    <Compile Include="Models\StartReadingRequest.cs" />
+  </ItemGroup>
+  -->
+
+</Project>
