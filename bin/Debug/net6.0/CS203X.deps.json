@@ -141,7 +141,7 @@
         "runtime": {
           "CSLibrary.dll": {
             "assemblyVersion": "3.0.143.0",
-            "fileVersion": "3.0.143.0"
+            "fileVersion": "0.0.0.0"
           }
         }
       },
@@ -149,7 +149,7 @@
         "runtime": {
           "CSLibrary.Windows.dll": {
             "assemblyVersion": "1.0.8692.18069",
-            "fileVersion": "1.0.8692.18069"
+            "fileVersion": "0.0.0.0"
           }
         }
       },

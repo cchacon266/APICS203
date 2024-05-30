@@ -80,7 +80,7 @@ namespace CS203XAPI.Controllers
             }
         }
 
-        [HttpGet("antennas")]
+        [HttpGet("list")]
         public IActionResult GetAntennas()
         {
             var connectedAntennas = new List<string>();

@@ -29,14 +29,5 @@
 		</Reference>
 	</ItemGroup>
 
-	<!-- Eliminar inclusiones explícitas de archivos Compile -->
-	<!-- No es necesario incluir estos archivos explícitamente -->
-	<!--
-  <ItemGroup>
-    <Compile Include="Controllers\ReaderController.cs" />
-    <Compile Include="Models\GpioRequest.cs" />
-    <Compile Include="Models\StartReadingRequest.cs" />
-  </ItemGroup>
-  -->
 
 </Project>
