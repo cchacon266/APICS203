@@ -49,6 +49,7 @@ C:/Users/cchac/Documentos/Tagventory/APICSL203X/CS203X/bin/Debug/net6.0/runtimes
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/CS203X.dll
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/CS203X.pdb
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/System.IO.Ports.dll
+/Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/System.Net.WebSockets.WebSocketProtocol.dll
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/runtimes/linux-arm/native/libSystem.IO.Ports.Native.so
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/runtimes/linux-arm64/native/libSystem.IO.Ports.Native.so
 /Users/cchacon/Documents/tagventory/APICS203/bin/Debug/net6.0/runtimes/linux-x64/native/libSystem.IO.Ports.Native.so

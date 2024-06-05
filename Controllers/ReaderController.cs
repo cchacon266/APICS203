@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using CSLibrary;
 using CSLibrary.Events;
 using CS203XAPI.Models;
-using System.Collections.Generic; // Para List<>
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -30,6 +30,7 @@ namespace CS203XAPI.Controllers
         {
             if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
             {
+                _logger.LogError("Reader IPs are required");
                 return BadRequest(new { error = "Reader IPs are required" });
             }
 
@@ -38,9 +39,11 @@ namespace CS203XAPI.Controllers
                 try
                 {
                     HighLevelInterface reader = new HighLevelInterface();
+                    _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
                     var ret = reader.Connect(ip, 30000);
                     if (ret != CSLibrary.Constants.Result.OK)
                     {
+                        _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
                         throw new Exception($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
                     }
 
@@ -49,6 +52,7 @@ namespace CS203XAPI.Controllers
                     InventorySetting(reader);
                     reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
                     ReaderList.Add(reader);
+                    _logger.LogInformation($"Reader connected and started at IP: {ip}");
                 }
                 catch (Exception ex)
                 {
@@ -62,6 +66,7 @@ namespace CS203XAPI.Controllers
         [HttpPost("stop")]
         public IActionResult StopReading()
         {
+            _logger.LogInformation("Stopping all readers");
             foreach (var reader in ReaderList)
             {
                 reader.StopOperation(true);
@@ -98,12 +103,19 @@ namespace CS203XAPI.Controllers
             {
                 if (request.Gpio == 0)
                 {
-                    SetGPO0(true);
+                    SetGPO0(request.State);
                 }
                 else if (request.Gpio == 1)
                 {
-                    SetGPO1(true);
-                    Task.Delay(3000).ContinueWith(t => SetGPO1(false));
+                    if (request.State)
+                    {
+                        SetGPO1(true);
+                        Task.Delay(20000).ContinueWith(t => SetGPO1(false));
+                    }
+                    else
+                    {
+                        SetGPO1(false);
+                    }
                 }
                 return Ok("GPIO triggered");
             }
@@ -201,6 +213,9 @@ namespace CS203XAPI.Controllers
                 {
                     TagsList.Add(tag);
                 }
+
+                // Enviar la etiqueta a través de WebSocket
+                WebSocketController.SendTag(tag);
             }
         }
 

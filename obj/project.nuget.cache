@@ -1,22 +1,31 @@
 {
   "version": 2,
-  "dgSpecHash": "MKk6q1tph39rsDLHr/AhC2VOzqa7LjvVWiOi6XiPraN+zqiu4fzuaY2P9OEQ41Y/m/NopEB1fNjtLw9PxBEmWw==",
+  "dgSpecHash": "JO8A3z3mlLWUHhtjEu3zBN79UsnSRWsbUl8zTG4RF1LqqF/2cwAY30S+92Mah/f0qkeZFyBgzffSKnJ+s7CYyA==",
   "success": true,
   "projectFilePath": "/Users/cchacon/Documents/tagventory/APICS203/CS203X.csproj",
   "expectedPackageFiles": [
+    "/Users/cchacon/.nuget/packages/microsoft.aspnetcore.http.abstractions/2.2.0/microsoft.aspnetcore.http.abstractions.2.2.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/microsoft.aspnetcore.http.extensions/2.2.0/microsoft.aspnetcore.http.extensions.2.2.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/microsoft.aspnetcore.http.features/2.2.0/microsoft.aspnetcore.http.features.2.2.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/microsoft.aspnetcore.websockets/2.2.1/microsoft.aspnetcore.websockets.2.2.1.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.dependencyinjection/5.0.0/microsoft.extensions.dependencyinjection.5.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/5.0.0/microsoft.extensions.dependencyinjection.abstractions.5.0.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/microsoft.extensions.fileproviders.abstractions/2.2.0/microsoft.extensions.fileproviders.abstractions.2.2.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.logging/5.0.0/microsoft.extensions.logging.5.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.logging.abstractions/5.0.0/microsoft.extensions.logging.abstractions.5.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.options/5.0.0/microsoft.extensions.options.5.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/microsoft.extensions.primitives/5.0.0/microsoft.extensions.primitives.5.0.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/microsoft.net.http.headers/2.2.0/microsoft.net.http.headers.2.2.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.linux-arm.runtime.native.system.io.ports/7.0.0/runtime.linux-arm.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.linux-arm64.runtime.native.system.io.ports/7.0.0/runtime.linux-arm64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.linux-x64.runtime.native.system.io.ports/7.0.0/runtime.linux-x64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.native.system.io.ports/7.0.0/runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.osx-arm64.runtime.native.system.io.ports/7.0.0/runtime.osx-arm64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "/Users/cchacon/.nuget/packages/runtime.osx-x64.runtime.native.system.io.ports/7.0.0/runtime.osx-x64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
-    "/Users/cchacon/.nuget/packages/system.io.ports/7.0.0/system.io.ports.7.0.0.nupkg.sha512"
+    "/Users/cchacon/.nuget/packages/system.buffers/4.5.0/system.buffers.4.5.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/system.io.ports/7.0.0/system.io.ports.7.0.0.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/system.net.websockets.websocketprotocol/4.5.3/system.net.websockets.websocketprotocol.4.5.3.nupkg.sha512",
+    "/Users/cchacon/.nuget/packages/system.text.encodings.web/4.5.0/system.text.encodings.web.4.5.0.nupkg.sha512"
   ],
   "logs": []
 }
