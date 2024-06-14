@@ -15,9 +15,10 @@ namespace CS203XAPI.Controllers
     public class ReaderController : ControllerBase
     {
         private static List<HighLevelInterface> ReaderList = new List<HighLevelInterface>();
-        private static List<string> TagsList = new List<string>();
+        private static Dictionary<string, DateTime> TagsDict = new Dictionary<string, DateTime>();
         private static object StateChangedLock = new object();
         private static object TagInventoryLock = new object();
+        private static object ConnectionLock = new object();
         private readonly ILogger<ReaderController> _logger;
 
         public ReaderController(ILogger<ReaderController> logger)
@@ -34,30 +35,34 @@ namespace CS203XAPI.Controllers
                 return BadRequest(new { error = "Reader IPs are required" });
             }
 
-            foreach (var ip in request.ReaderIPs)
+            lock (ConnectionLock)
             {
-                try
+                foreach (var ip in request.ReaderIPs)
                 {
-                    HighLevelInterface reader = new HighLevelInterface();
-                    _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
-                    var ret = reader.Connect(ip, 30000);
-                    if (ret != CSLibrary.Constants.Result.OK)
+                    HighLevelInterface reader = null;
+                    try
                     {
-                        _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                        throw new Exception($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                    }
+                        reader = new HighLevelInterface();
+                        _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
+                        var ret = reader.Connect(ip, 30000);
+                        if (ret != CSLibrary.Constants.Result.OK)
+                        {
+                            _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                            throw new Exception($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                        }
 
-                    reader.OnStateChanged += ReaderXP_StateChangedEvent;
-                    reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
-                    InventorySetting(reader);
-                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                    ReaderList.Add(reader);
-                    _logger.LogInformation($"Reader connected and started at IP: {ip}");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Error connecting to reader");
-                    return BadRequest(ex.Message);
+                        reader.OnStateChanged += ReaderXP_StateChangedEvent;
+                        reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
+                        InventorySetting(reader);
+                        reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                        ReaderList.Add(reader);
+                        _logger.LogInformation($"Reader connected and started at IP: {ip}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error connecting to reader with IP: {ip}");
+                        reader?.Disconnect(); // Ensure resources are cleaned up
+                    }
                 }
             }
             return Ok("Readers started successfully");
@@ -67,12 +72,22 @@ namespace CS203XAPI.Controllers
         public IActionResult StopReading()
         {
             _logger.LogInformation("Stopping all readers");
-            foreach (var reader in ReaderList)
+            lock (ConnectionLock)
             {
-                reader.StopOperation(true);
-                reader.Disconnect();
+                foreach (var reader in ReaderList)
+                {
+                    try
+                    {
+                        reader.StopOperation(true);
+                        reader.Disconnect();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error stopping reader");
+                    }
+                }
+                ReaderList.Clear();
             }
-            ReaderList.Clear();
             return Ok("Readers stopped successfully");
         }
 
@@ -81,7 +96,16 @@ namespace CS203XAPI.Controllers
         {
             lock (TagInventoryLock)
             {
-                return Ok(TagsList);
+                var tagsWithTimestamp = new List<object>();
+                foreach (var tag in TagsDict)
+                {
+                    tagsWithTimestamp.Add(new
+                    {
+                        Tag = tag.Key,
+                        LastReadTime = tag.Value.ToString("dd-MM-yyyy HH:mm") // Formatear la fecha y hora
+                    });
+                }
+                return Ok(tagsWithTimestamp);
             }
         }
 
@@ -89,9 +113,12 @@ namespace CS203XAPI.Controllers
         public IActionResult GetAntennas()
         {
             var connectedAntennas = new List<string>();
-            foreach (var reader in ReaderList)
+            lock (StateChangedLock)
             {
-                connectedAntennas.Add(reader.IPAddress);
+                foreach (var reader in ReaderList)
+                {
+                    connectedAntennas.Add(reader.IPAddress);
+                }
             }
             return Ok(connectedAntennas);
         }
@@ -124,17 +151,23 @@ namespace CS203XAPI.Controllers
 
         private void SetGPO0(bool state)
         {
-            foreach (var reader in ReaderList)
+            lock (ConnectionLock)
             {
-                reader.SetGPO0Async(state);
+                foreach (var reader in ReaderList)
+                {
+                    reader.SetGPO0Async(state);
+                }
             }
         }
 
         private void SetGPO1(bool state)
         {
-            foreach (var reader in ReaderList)
+            lock (ConnectionLock)
             {
-                reader.SetGPO1Async(state);
+                foreach (var reader in ReaderList)
+                {
+                    reader.SetGPO1Async(state);
+                }
             }
         }
 
@@ -209,10 +242,7 @@ namespace CS203XAPI.Controllers
             {
                 var reader = (HighLevelInterface)sender;
                 string tag = $"{reader.IPAddress}: {e.info.epc.ToString()}";
-                if (!TagsList.Contains(tag))
-                {
-                    TagsList.Add(tag);
-                }
+                TagsDict[tag] = DateTime.Now; // Actualiza la hora de lectura de la etiqueta
 
                 // Enviar la etiqueta a través de WebSocket
                 WebSocketController.SendTag(tag);

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>Tags in Real-Time</h1>
+    <ul id="tags"></ul>
+    
+    <script>
+        const ws = new WebSocket('ws://localhost:5000/ws');
+        const tagsList = document.getElementById('tags');
+        const tagsSet = new Set(); // Conjunto para almacenar etiquetas únicas
+        
+        ws.onmessage = (event) => {
+            const tag = event.data;
+
+            // Verifica si la etiqueta ya está en el conjunto
+            if (!tagsSet.has(tag)) {
+                tagsSet.add(tag); // Añade la etiqueta al conjunto
+                const tagItem = document.createElement('li');
+                tagItem.textContent = tag;
+                tagsList.appendChild(tagItem);
+            }
+        };
+
+        ws.onopen = () => {
+            console.log('WebSocket connection opened');
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed');
+        };
+
+        ws.onerror = (error) => {
+            console.log('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html>
