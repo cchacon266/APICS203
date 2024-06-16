@@ -1,25 +1,28 @@
 {
   "format": 1,
   "restore": {
-    "/Users/cchacon/Documents/tagventory/APICS203/CS203X.csproj": {}
+    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj": {}
   },
   "projects": {
-    "/Users/cchacon/Documents/tagventory/APICS203/CS203X.csproj": {
+    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "/Users/cchacon/Documents/tagventory/APICS203/CS203X.csproj",
+        "projectUniqueName": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
         "projectName": "CS203X",
-        "projectPath": "/Users/cchacon/Documents/tagventory/APICS203/CS203X.csproj",
-        "packagesPath": "/Users/cchacon/.nuget/packages/",
-        "outputPath": "/Users/cchacon/Documents/tagventory/APICS203/obj/",
+        "projectPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
+        "packagesPath": "C:\\Users\\cchac\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "/Users/cchacon/.nuget/NuGet/NuGet.Config"
+          "C:\\Users\\cchac\\AppData\\Roaming\\NuGet\\NuGet.Config",
+          "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
         ],
         "originalTargetFrameworks": [
           "net6.0"
         ],
         "sources": {
+          "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
+          "C:\\Program Files\\dotnet\\sdk\\7.0.304\\Sdks\\Microsoft.NET.Sdk.Web\\library-packs": {},
           "https://api.nuget.org/v3/index.json": {}
         },
         "frameworks": {
@@ -70,7 +73,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/sdk/6.0.423/RuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\7.0.304\\RuntimeIdentifierGraph.json"
         }
       }
     }
