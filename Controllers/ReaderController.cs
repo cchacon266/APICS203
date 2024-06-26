@@ -20,6 +20,8 @@ namespace CS203XAPI.Controllers
         private static object StateChangedLock = new object();
         private static object TagInventoryLock = new object();
         private readonly ILogger<ReaderController> _logger;
+        private static int antCycleEndCount = 0;
+        private const int AntCycleEndLogInterval = 100;
 
         public ReaderController(ILogger<ReaderController> logger)
         {
@@ -118,20 +120,26 @@ namespace CS203XAPI.Controllers
         {
             if (request.Action == "trigger")
             {
+                var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
+                if (reader == null)
+                {
+                    return BadRequest($"Reader with IP {request.ReaderIP} not found");
+                }
+
                 if (request.Gpio == 0)
                 {
-                    SetGPO0(request.State);
+                    SetGPO0(reader, request.State);
                 }
                 else if (request.Gpio == 1)
                 {
                     if (request.State)
                     {
-                        SetGPO1(true);
-                        Task.Delay(20000).ContinueWith(t => SetGPO1(false));
+                        SetGPO1(reader, true);
+                        Task.Delay(20000).ContinueWith(t => SetGPO1(reader, false));
                     }
                     else
                     {
-                        SetGPO1(false);
+                        SetGPO1(reader, false);
                     }
                 }
                 return Ok("GPIO triggered");
@@ -139,20 +147,14 @@ namespace CS203XAPI.Controllers
             return BadRequest("Invalid action or GPIO");
         }
 
-        private void SetGPO0(bool state)
+        private void SetGPO0(HighLevelInterface reader, bool state)
         {
-            foreach (var reader in ReaderList)
-            {
-                reader.SetGPO0Async(state);
-            }
+            reader.SetGPO0Async(state);
         }
 
-        private void SetGPO1(bool state)
+        private void SetGPO1(HighLevelInterface reader, bool state)
         {
-            foreach (var reader in ReaderList)
-            {
-                reader.SetGPO1Async(state);
-            }
+            reader.SetGPO1Async(state);
         }
 
         private void ReaderXP_StateChangedEvent(object sender, OnStateChangedEventArgs e)
@@ -160,12 +162,20 @@ namespace CS203XAPI.Controllers
             lock (StateChangedLock)
             {
                 var reader = (HighLevelInterface)sender;
+                
                 if (e.state == CSLibrary.Constants.RFState.ANT_CYCLE_END)
                 {
-                    return; // Ignorar el estado ANT_CYCLE_END
+                    antCycleEndCount++;
+                    if (antCycleEndCount % AntCycleEndLogInterval == 0)
+                    {
+                        _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
                 }
 
-                _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
                 switch (e.state)
                 {
                     case CSLibrary.Constants.RFState.IDLE:
