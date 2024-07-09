@@ -20,8 +20,6 @@ namespace CS203XAPI.Controllers
         private static object StateChangedLock = new object();
         private static object TagInventoryLock = new object();
         private readonly ILogger<ReaderController> _logger;
-        private static int antCycleEndCount = 0;
-        private const int AntCycleEndLogInterval = 100;
 
         public ReaderController(ILogger<ReaderController> logger)
         {
@@ -41,33 +39,26 @@ namespace CS203XAPI.Controllers
             {
                 try
                 {
+                    HighLevelInterface reader = new HighLevelInterface();
                     _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
-                    if (IsSocketConnected(ip, 1515, 3, 2000))
+                    var ret = reader.Connect(ip, 30000);
+                    if (ret != CSLibrary.Constants.Result.OK)
                     {
-                        HighLevelInterface reader = new HighLevelInterface();
-                        var ret = reader.Connect(ip, 30000);
-                        _logger.LogInformation($"Connection result for IP {ip}: {ret}");
-                        if (ret != CSLibrary.Constants.Result.OK)
-                        {
-                            _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                            continue;
-                        }
+                        _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                        throw new Exception($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                    }
 
-                        reader.OnStateChanged += ReaderXP_StateChangedEvent;
-                        reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
-                        InventorySetting(reader);
-                        reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                        ReaderList.Add(reader);
-                        _logger.LogInformation($"Reader connected and started at IP: {ip}");
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Cannot connect to IP {ip} on port 1515");
-                    }
+                    reader.OnStateChanged += ReaderXP_StateChangedEvent;
+                    reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
+                    InventorySetting(reader);
+                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                    ReaderList.Add(reader);
+                    _logger.LogInformation($"Reader connected and started at IP: {ip}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Exception during connection to IP {ip} on port 1515");
+                    _logger.LogError(ex, "Error connecting to reader");
+                    return BadRequest(ex.Message);
                 }
             }
             return Ok("Readers started successfully");
@@ -77,12 +68,22 @@ namespace CS203XAPI.Controllers
         public IActionResult StopReading()
         {
             _logger.LogInformation("Stopping all readers");
-            foreach (var reader in ReaderList)
+            lock (StateChangedLock)
             {
-                reader.StopOperation(true);
-                reader.Disconnect();
+                foreach (var reader in ReaderList)
+                {
+                    try
+                    {
+                        reader.StopOperation(true);
+                        reader.Disconnect();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error stopping reader");
+                    }
+                }
+                ReaderList.Clear();
             }
-            ReaderList.Clear();
             return Ok("Readers stopped successfully");
         }
 
@@ -108,9 +109,12 @@ namespace CS203XAPI.Controllers
         public IActionResult GetAntennas()
         {
             var connectedAntennas = new List<string>();
-            foreach (var reader in ReaderList)
+            lock (StateChangedLock)
             {
-                connectedAntennas.Add(reader.IPAddress);
+                foreach (var reader in ReaderList)
+                {
+                    connectedAntennas.Add(reader.IPAddress);
+                }
             }
             return Ok(connectedAntennas);
         }
@@ -120,26 +124,20 @@ namespace CS203XAPI.Controllers
         {
             if (request.Action == "trigger")
             {
-                var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
-                if (reader == null)
-                {
-                    return BadRequest($"Reader with IP {request.ReaderIP} not found");
-                }
-
                 if (request.Gpio == 0)
                 {
-                    SetGPO0(reader, request.State);
+                    SetGPO0(request.State);
                 }
                 else if (request.Gpio == 1)
                 {
                     if (request.State)
                     {
-                        SetGPO1(reader, true);
-                        Task.Delay(20000).ContinueWith(t => SetGPO1(reader, false));
+                        SetGPO1(true);
+                        Task.Delay(20000).ContinueWith(t => SetGPO1(false));
                     }
                     else
                     {
-                        SetGPO1(reader, false);
+                        SetGPO1(false);
                     }
                 }
                 return Ok("GPIO triggered");
@@ -147,14 +145,26 @@ namespace CS203XAPI.Controllers
             return BadRequest("Invalid action or GPIO");
         }
 
-        private void SetGPO0(HighLevelInterface reader, bool state)
+        private void SetGPO0(bool state)
         {
-            reader.SetGPO0Async(state);
+            lock (StateChangedLock)
+            {
+                foreach (var reader in ReaderList)
+                {
+                    reader.SetGPO0Async(state);
+                }
+            }
         }
 
-        private void SetGPO1(HighLevelInterface reader, bool state)
+        private void SetGPO1(bool state)
         {
-            reader.SetGPO1Async(state);
+            lock (StateChangedLock)
+            {
+                foreach (var reader in ReaderList)
+                {
+                    reader.SetGPO1Async(state);
+                }
+            }
         }
 
         private void ReaderXP_StateChangedEvent(object sender, OnStateChangedEventArgs e)
@@ -162,20 +172,6 @@ namespace CS203XAPI.Controllers
             lock (StateChangedLock)
             {
                 var reader = (HighLevelInterface)sender;
-                
-                if (e.state == CSLibrary.Constants.RFState.ANT_CYCLE_END)
-                {
-                    antCycleEndCount++;
-                    if (antCycleEndCount % AntCycleEndLogInterval == 0)
-                    {
-                        _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
-                    }
-                }
-                else
-                {
-                    _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
-                }
-
                 switch (e.state)
                 {
                     case CSLibrary.Constants.RFState.IDLE:
@@ -331,32 +327,39 @@ namespace CS203XAPI.Controllers
         {
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
+                Socket client = null;
                 try
                 {
-                    using (var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                    client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+                    var result = client.BeginConnect(ip, port, null, null);
+                    bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10));
+
+                    if (!success)
                     {
-                        var result = client.BeginConnect(ip, port, null, null);
-                        bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
-
-                        if (!success)
-                        {
-                            _logger.LogWarning($"Cannot connect to IP {ip} on port {port}");
-                            Thread.Sleep(retryDelayMilliseconds);
-                            continue;
-                        }
-
-                        client.EndConnect(result);
-                        _logger.LogInformation($"Successfully connected to IP {ip} on port {port}");
-                        return true;
+                        _logger.LogWarning($"Attempt {attempt + 1}: Cannot connect to IP {ip} on port {port}");
+                        client.Close();
+                        Thread.Sleep(retryDelayMilliseconds);
+                        continue;
                     }
+
+                    client.EndConnect(result);
+                    _logger.LogInformation($"Successfully connected to IP {ip} on port {port} on attempt {attempt + 1}");
+                    client.Close(); // Cerrar el cliente después de que se complete la operación
+                    return true;
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Exception during connection to IP {ip} on port {port}");
+                    _logger.LogError(ex, $"Attempt {attempt + 1}: Exception during connection to IP {ip} on port {port}");
+                    client?.Close();
                     Thread.Sleep(retryDelayMilliseconds);
+                }
+                finally
+                {
+                    client?.Dispose(); // Asegúrate de disponer del cliente para liberar recursos
                 }
             }
 
+            _logger.LogWarning($"Failed to connect to IP {ip} on port {port} after {maxRetries} attempts");
             return false;
         }
     }
