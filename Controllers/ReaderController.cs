@@ -39,13 +39,14 @@ namespace CS203XAPI.Controllers
             {
                 try
                 {
-                    HighLevelInterface reader = new HighLevelInterface();
                     _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
+                    HighLevelInterface reader = new HighLevelInterface();
                     var ret = reader.Connect(ip, 30000);
+                    _logger.LogInformation($"Connection result for IP {ip}: {ret}");
                     if (ret != CSLibrary.Constants.Result.OK)
                     {
                         _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                        throw new Exception($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                        continue;
                     }
 
                     reader.OnStateChanged += ReaderXP_StateChangedEvent;
@@ -57,8 +58,7 @@ namespace CS203XAPI.Controllers
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error connecting to reader");
-                    return BadRequest(ex.Message);
+                    _logger.LogError(ex, $"Exception during connection to IP {ip}");
                 }
             }
             return Ok("Readers started successfully");
@@ -124,20 +124,26 @@ namespace CS203XAPI.Controllers
         {
             if (request.Action == "trigger")
             {
+                var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
+                if (reader == null)
+                {
+                    return BadRequest($"Reader with IP {request.ReaderIP} not found");
+                }
+
                 if (request.Gpio == 0)
                 {
-                    SetGPO0(request.State);
+                    SetGPO0(reader, request.State);
                 }
                 else if (request.Gpio == 1)
                 {
                     if (request.State)
                     {
-                        SetGPO1(true);
-                        Task.Delay(20000).ContinueWith(t => SetGPO1(false));
+                        SetGPO1(reader, true);
+                        Task.Delay(20000).ContinueWith(t => SetGPO1(reader, false));
                     }
                     else
                     {
-                        SetGPO1(false);
+                        SetGPO1(reader, false);
                     }
                 }
                 return Ok("GPIO triggered");
@@ -145,26 +151,14 @@ namespace CS203XAPI.Controllers
             return BadRequest("Invalid action or GPIO");
         }
 
-        private void SetGPO0(bool state)
+        private void SetGPO0(HighLevelInterface reader, bool state)
         {
-            lock (StateChangedLock)
-            {
-                foreach (var reader in ReaderList)
-                {
-                    reader.SetGPO0Async(state);
-                }
-            }
+            reader.SetGPO0Async(state);
         }
 
-        private void SetGPO1(bool state)
+        private void SetGPO1(HighLevelInterface reader, bool state)
         {
-            lock (StateChangedLock)
-            {
-                foreach (var reader in ReaderList)
-                {
-                    reader.SetGPO1Async(state);
-                }
-            }
+            reader.SetGPO1Async(state);
         }
 
         private void ReaderXP_StateChangedEvent(object sender, OnStateChangedEventArgs e)
@@ -172,6 +166,7 @@ namespace CS203XAPI.Controllers
             lock (StateChangedLock)
             {
                 var reader = (HighLevelInterface)sender;
+                _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
                 switch (e.state)
                 {
                     case CSLibrary.Constants.RFState.IDLE:
@@ -327,39 +322,32 @@ namespace CS203XAPI.Controllers
         {
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
-                Socket client = null;
                 try
                 {
-                    client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-                    var result = client.BeginConnect(ip, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10));
-
-                    if (!success)
+                    using (var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
                     {
-                        _logger.LogWarning($"Attempt {attempt + 1}: Cannot connect to IP {ip} on port {port}");
-                        client.Close();
-                        Thread.Sleep(retryDelayMilliseconds);
-                        continue;
-                    }
+                        var result = client.BeginConnect(ip, port, null, null);
+                        bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
 
-                    client.EndConnect(result);
-                    _logger.LogInformation($"Successfully connected to IP {ip} on port {port} on attempt {attempt + 1}");
-                    client.Close(); // Cerrar el cliente después de que se complete la operación
-                    return true;
+                        if (!success)
+                        {
+                            _logger.LogWarning($"Cannot connect to IP {ip} on port {port}");
+                            Thread.Sleep(retryDelayMilliseconds);
+                            continue;
+                        }
+
+                        client.EndConnect(result);
+                        _logger.LogInformation($"Successfully connected to IP {ip} on port {port}");
+                        return true;
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Attempt {attempt + 1}: Exception during connection to IP {ip} on port {port}");
-                    client?.Close();
+                    _logger.LogError(ex, $"Exception during connection to IP {ip} on port {port}");
                     Thread.Sleep(retryDelayMilliseconds);
-                }
-                finally
-                {
-                    client?.Dispose(); // Asegúrate de disponer del cliente para liberar recursos
                 }
             }
 
-            _logger.LogWarning($"Failed to connect to IP {ip} on port {port} after {maxRetries} attempts");
             return false;
         }
     }
