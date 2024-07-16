@@ -40,32 +40,25 @@ namespace CS203XAPI.Controllers
                 try
                 {
                     _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
-                    if (IsSocketConnected(ip, 1515, 3, 2000))
+                    HighLevelInterface reader = new HighLevelInterface();
+                    var ret = reader.Connect(ip, 30000);
+                    _logger.LogInformation($"Connection result for IP {ip}: {ret}");
+                    if (ret != CSLibrary.Constants.Result.OK)
                     {
-                        HighLevelInterface reader = new HighLevelInterface();
-                        var ret = reader.Connect(ip, 30000);
-                        _logger.LogInformation($"Connection result for IP {ip}: {ret}");
-                        if (ret != CSLibrary.Constants.Result.OK)
-                        {
-                            _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                            continue;
-                        }
+                        _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
+                        continue;
+                    }
 
-                        reader.OnStateChanged += ReaderXP_StateChangedEvent;
-                        reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
-                        InventorySetting(reader);
-                        reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                        ReaderList.Add(reader);
-                        _logger.LogInformation($"Reader connected and started at IP: {ip}");
-                    }
-                    else
-                    {
-                        _logger.LogWarning($"Cannot connect to IP {ip} on port 1515");
-                    }
+                    reader.OnStateChanged += ReaderXP_StateChangedEvent;
+                    reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
+                    InventorySetting(reader);
+                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                    ReaderList.Add(reader);
+                    _logger.LogInformation($"Reader connected and started at IP: {ip}");
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Exception during connection to IP {ip} on port 1515");
+                    _logger.LogError(ex, $"Exception during connection to IP {ip}");
                 }
             }
             return Ok("Readers started successfully");
@@ -75,12 +68,22 @@ namespace CS203XAPI.Controllers
         public IActionResult StopReading()
         {
             _logger.LogInformation("Stopping all readers");
-            foreach (var reader in ReaderList)
+            lock (StateChangedLock)
             {
-                reader.StopOperation(true);
-                reader.Disconnect();
+                foreach (var reader in ReaderList)
+                {
+                    try
+                    {
+                        reader.StopOperation(true);
+                        reader.Disconnect();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Error stopping reader");
+                    }
+                }
+                ReaderList.Clear();
             }
-            ReaderList.Clear();
             return Ok("Readers stopped successfully");
         }
 
@@ -106,9 +109,12 @@ namespace CS203XAPI.Controllers
         public IActionResult GetAntennas()
         {
             var connectedAntennas = new List<string>();
-            foreach (var reader in ReaderList)
+            lock (StateChangedLock)
             {
-                connectedAntennas.Add(reader.IPAddress);
+                foreach (var reader in ReaderList)
+                {
+                    connectedAntennas.Add(reader.IPAddress);
+                }
             }
             return Ok(connectedAntennas);
         }
@@ -118,20 +124,26 @@ namespace CS203XAPI.Controllers
         {
             if (request.Action == "trigger")
             {
+                var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
+                if (reader == null)
+                {
+                    return BadRequest($"Reader with IP {request.ReaderIP} not found");
+                }
+
                 if (request.Gpio == 0)
                 {
-                    SetGPO0(request.State);
+                    SetGPO0(reader, request.State);
                 }
                 else if (request.Gpio == 1)
                 {
                     if (request.State)
                     {
-                        SetGPO1(true);
-                        Task.Delay(20000).ContinueWith(t => SetGPO1(false));
+                        SetGPO1(reader, true);
+                        Task.Delay(20000).ContinueWith(t => SetGPO1(reader, false));
                     }
                     else
                     {
-                        SetGPO1(false);
+                        SetGPO1(reader, false);
                     }
                 }
                 return Ok("GPIO triggered");
@@ -139,20 +151,14 @@ namespace CS203XAPI.Controllers
             return BadRequest("Invalid action or GPIO");
         }
 
-        private void SetGPO0(bool state)
+        private void SetGPO0(HighLevelInterface reader, bool state)
         {
-            foreach (var reader in ReaderList)
-            {
-                reader.SetGPO0Async(state);
-            }
+            reader.SetGPO0Async(state);
         }
 
-        private void SetGPO1(bool state)
+        private void SetGPO1(HighLevelInterface reader, bool state)
         {
-            foreach (var reader in ReaderList)
-            {
-                reader.SetGPO1Async(state);
-            }
+            reader.SetGPO1Async(state);
         }
 
         private void ReaderXP_StateChangedEvent(object sender, OnStateChangedEventArgs e)
@@ -160,11 +166,6 @@ namespace CS203XAPI.Controllers
             lock (StateChangedLock)
             {
                 var reader = (HighLevelInterface)sender;
-                if (e.state == CSLibrary.Constants.RFState.ANT_CYCLE_END)
-                {
-                    return; // Ignorar el estado ANT_CYCLE_END
-                }
-
                 _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
                 switch (e.state)
                 {

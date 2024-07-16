@@ -38,21 +38,40 @@ namespace CS203XAPI.Controllers
         private async Task Echo(WebSocket webSocket)
         {
             var buffer = new byte[1024 * 4];
-            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-
-            while (!result.CloseStatus.HasValue)
+            WebSocketReceiveResult result = null;
+            try
             {
                 result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
-            }
 
-            lock (_lock)
-            {
-                _sockets.Remove(webSocket);
+                while (!result.CloseStatus.HasValue)
+                {
+                    result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
+                }
             }
-            await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"WebSocket Echo error: {ex.Message}");
+            }
+            finally
+            {
+                lock (_lock)
+                {
+                    _sockets.Remove(webSocket);
+                }
+
+                if (result != null)
+                {
+                    await webSocket.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
+                }
+                else
+                {
+                    await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "Internal server error", CancellationToken.None);
+                }
+            }
         }
 
-        public static void SendTag(string tag)
+        public static async void SendTag(string tag)
         {
             var buffer = Encoding.UTF8.GetBytes(tag);
             var tasks = new List<Task>();
@@ -68,7 +87,15 @@ namespace CS203XAPI.Controllers
                 }
             }
 
-            Task.WhenAll(tasks);
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"Error sending tag via WebSocket: {ex.Message}");
+            }
         }
     }
 }
