@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        #container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
+            margin-top: 50px; /* Ajusta este valor según sea necesario */
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        li {
+            background: #e0f7fa;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Tags in Real-Time</h1>
+        <ul id="tags"></ul>
+    </div>
+    
+    <script>
+        const ws = new WebSocket('ws://localhost:5000/ws');
+        const tagsList = document.getElementById('tags');
+        const tagsMap = new Map(); // Map para almacenar etiquetas y sus elementos de lista
+        
+        ws.onmessage = (event) => {
+            const tag = event.data;
+            const now = new Date();
+
+            if (tagsMap.has(tag)) {
+                // Actualiza el tiempo de la etiqueta
+                tagsMap.get(tag).lastSeen = now;
+            } else {
+                // Añade la etiqueta al mapa y a la lista
+                const tagItem = document.createElement('li');
+                tagItem.textContent = tag;
+                tagsList.appendChild(tagItem);
+                tagsMap.set(tag, { element: tagItem, lastSeen: now });
+            }
+        };
+
+        setInterval(() => {
+            const now = new Date();
+            for (const [tag, info] of tagsMap) {
+                // Si el tag no ha sido visto en los últimos 5 segundos, se elimina
+                if (now - info.lastSeen > 5000) {
+                    tagsList.removeChild(info.element);
+                    tagsMap.delete(tag);
+                }
+            }
+        }, 1000); // Verifica cada segundo
+
+        ws.onopen = () => {
+            console.log('WebSocket connection opened');
+        };
+
+        ws.onclose = () => {
+            console.log('WebSocket connection closed');
+        };
+
+        ws.onerror = (error) => {
+            console.log('WebSocket error:', error);
+        };
+    </script>
+</body>
+</html>
