@@ -15,7 +15,7 @@ namespace CS203XAPI.Controllers
     {
         private static List<WebSocket> _sockets = new List<WebSocket>();
         private static object _lock = new object();
-        
+
         [HttpGet("/ws")]
         public async Task Get()
         {
@@ -45,6 +45,7 @@ namespace CS203XAPI.Controllers
 
                 while (!result.CloseStatus.HasValue)
                 {
+                    await webSocket.SendAsync(new ArraySegment<byte>(buffer, 0, result.Count), result.MessageType, result.EndOfMessage, CancellationToken.None);
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationToken.None);
                 }
             }
@@ -75,7 +76,7 @@ namespace CS203XAPI.Controllers
         {
             var buffer = Encoding.UTF8.GetBytes(tag);
             var tasks = new List<Task>();
-            
+
             lock (_lock)
             {
                 foreach (var socket in _sockets)

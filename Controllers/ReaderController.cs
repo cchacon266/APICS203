@@ -112,34 +112,6 @@ namespace CS203XAPI.Controllers
             return Ok("Lectores iniciados con éxito");
         }
 
-        // Método para verificar si el socket está conectado
-        private bool IsSocketConnected(string ip, int port)
-        {
-            try
-            {
-                using (var client = new TcpClient())
-                {
-                    var result = client.BeginConnect(ip, port, null, null);
-                    bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
-
-                    if (!success)
-                    {
-                        _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
-                        return false;
-                    }
-
-                    client.EndConnect(result);
-                    _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
-                    return true;
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
-                return false;
-            }
-        }
-
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
         public IActionResult StopReading()
@@ -320,62 +292,63 @@ namespace CS203XAPI.Controllers
         private void HandleResetState(HighLevelInterface reader)
         {
             Thread service = new Thread(() =>
+    {
+        DateTime reconnTimer = DateTime.Now;
+        int retryCount = 0;
+        int maxRetries = 10;
+
+        _logger.LogInformation($"Attempting to reconnect reader at IP: {reader.IPAddress}");
+
+        while (retryCount < maxRetries)
+        {
+            retryCount++;
+
+            if (string.IsNullOrWhiteSpace(reader.IPAddress) || reader.IPAddress == "0.0.0.0")
             {
-                DateTime reconnTimer = DateTime.Now;
-                int retryCount = 0;
-                int maxRetries = 10;
+                _logger.LogError($"Invalid IP address for reconnection: {reader.IPAddress}");
+                break;
+            }
 
-                _logger.LogInformation($"Attempting to reconnect reader at IP: {reader.IPAddress}");
-
-                while (retryCount < maxRetries)
+            try
+            {
+                if (!IsSocketConnected(reader.IPAddress, 1515, maxRetries, 2000))
                 {
-                    retryCount++;
-
-                    if (string.IsNullOrWhiteSpace(reader.IPAddress) || reader.IPAddress == "0.0.0.0")
-                    {
-                        _logger.LogError($"Invalid IP address for reconnection: {reader.IPAddress}");
-                        break;
-                    }
-
-                    try
-                    {
-                        if (!IsSocketConnected(reader.IPAddress, 1515, 3, 2000))
-                        {
-                            _logger.LogWarning($"Socket is not connected for IP: {reader.IPAddress}, retrying ({retryCount}/{maxRetries})...");
-                            Thread.Sleep(1000);
-                            continue;
-                        }
-
-                        var result = reader.Reconnect(1);
-                        if (result == CSLibrary.Constants.Result.OK)
-                        {
-                            _logger.LogInformation($"Successfully reconnected reader at IP: {reader.IPAddress}");
-                            InventorySetting(reader);
-                            reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                            break;
-                        }
-                        else
-                        {
-                            _logger.LogWarning($"Reconnection attempt failed for reader at IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})");
-                        }
-                    }
-                    catch (ObjectDisposedException ex)
-                    {
-                        _logger.LogError(ex, $"ObjectDisposedException caught during reconnection for reader at IP: {reader.IPAddress}");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, $"Exception caught during reconnection for reader at IP: {reader.IPAddress}");
-                    }
-
-                    Thread.Sleep(1000); // Esperar un momento antes de intentar reconectar nuevamente
+                    _logger.LogWarning($"Socket is not connected for IP: {reader.IPAddress}, retrying ({retryCount}/{maxRetries})...");
+                    Thread.Sleep(2000); // Incrementa el tiempo de espera entre reintentos
+                    continue;
                 }
 
-                _logger.LogInformation($"Reconnection attempts for reader at IP: {reader.IPAddress} completed with {retryCount} attempts.");
-            });
+                var result = reader.Reconnect(1);
+                if (result == CSLibrary.Constants.Result.OK)
+                {
+                    _logger.LogInformation($"Successfully reconnected reader at IP: {reader.IPAddress}");
+                    InventorySetting(reader);
+                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                    break;
+                }
+                else
+                {
+                    _logger.LogWarning($"Reconnection attempt failed for reader at IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})");
+                }
+            }
+            catch (ObjectDisposedException ex)
+            {
+                _logger.LogError(ex, $"ObjectDisposedException caught during reconnection for reader at IP: {reader.IPAddress}");
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Exception caught during reconnection for reader at IP: {reader.IPAddress}");
+            }
 
-            service.IsBackground = true; // Asegura que el thread no bloquee la salida del programa
+            Thread.Sleep(2000); // Incrementa el tiempo de espera entre reintentos
+        }
+
+        _logger.LogInformation($"Reconnection attempts for reader at IP: {reader.IPAddress} completed with {retryCount} attempts.");
+    })
+            {
+                IsBackground = true // Asegura que el thread no bloquee la salida del programa
+            };
             try
             {
                 service.Start();
@@ -414,7 +387,7 @@ namespace CS203XAPI.Controllers
                 // Si la antena tiene GPIO habilitado, manejar el encendido de los LEDs
                 if (HasGPIO(reader.IPAddress))
                 {
-                   // _logger.LogInformation($"La antena con IP {reader.IPAddress} tiene semáforo (GPIO) y está leyendo la etiqueta {e.info.epc.ToString()}");
+                    // _logger.LogInformation($"La antena con IP {reader.IPAddress} tiene semáforo (GPIO) y está leyendo la etiqueta {e.info.epc.ToString()}");
                     HandleGpioActions(reader, e.info.epc.ToString());
                 }
 
@@ -489,37 +462,43 @@ namespace CS203XAPI.Controllers
             reader.Options.TagRanging.flags = CSLibrary.Constants.SelectFlags.ZERO;
         }
 
-        // Método para verificar si el socket está conectado
-        private bool IsSocketConnected(string ip, int port, int maxRetries, int retryDelayMilliseconds)
+        // Método para verificar si el socket está conectado con manejo de reintentos
+        private bool IsSocketConnected(string ip, int port, int maxRetries = 10, int retryDelayMilliseconds = 5000)
         {
             for (int attempt = 0; attempt < maxRetries; attempt++)
             {
                 try
                 {
-                    using (var client = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp))
+                    using (var client = new TcpClient())
                     {
                         var result = client.BeginConnect(ip, port, null, null);
-                        bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+                        bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(30)); // Incrementa el tiempo de espera aquí
 
                         if (!success)
                         {
-                            _logger.LogWarning($"Cannot connect to IP {ip} on port {port}");
-                            Thread.Sleep(retryDelayMilliseconds);
+                            _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
+                            Thread.Sleep(retryDelayMilliseconds); // Incrementa el tiempo de espera entre reintentos
                             continue;
                         }
 
                         client.EndConnect(result);
-                        _logger.LogInformation($"Successfully connected to IP {ip} on port {port}");
+                        _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port} en el intento {attempt + 1}");
                         return true;
                     }
                 }
+                catch (ObjectDisposedException ex)
+                {
+                    _logger.LogError(ex, $"ObjectDisposedException durante la conexión a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
+                }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, $"Exception during connection to IP {ip} on port {port}");
-                    Thread.Sleep(retryDelayMilliseconds);
+                    _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
                 }
+
+                Thread.Sleep(retryDelayMilliseconds); // Incrementa el tiempo de espera entre reintentos
             }
 
+            _logger.LogError($"No se pudo conectar a la IP {ip} en el puerto {port} después de {maxRetries} intentos");
             return false;
         }
 
