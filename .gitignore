@@ -2,6 +2,40 @@
 bin/
 obj/
 
+# Visual Studio Files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
+# NuGet
+*.nupkg
+*.snupkg
+*.nuspec
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# Windows Image File Caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# VS Code directories
+.vscode/
+
+# Logs
+*.log
+
 # User-specific files
 *.rsuser
 *.suo
@@ -9,7 +43,7 @@ obj/
 *.userosscache
 *.sln.docstates
 
-# Mono Auto Generated Files
+# Mono auto generated files
 mono_crash.*
 
 # Windows image file caches
@@ -22,114 +56,18 @@ Desktop.ini
 # Recycle Bin used on file shares
 $RECYCLE.BIN/
 
-# Temporary files
-*.tmp
-*.temp
-*.tmp2
-*.swp
-
 # VS Code directories
 .vscode/
-.history/
 
 # Rider directories
 .idea/
 
-# Backup & report files
-*_i.c
-*_p.c
-*_i.h
-*.ilk
-*.meta
-*.obj
-*.pch
-*.pdb
-*.pgc
-*.pgd
-*.rsp
-*.sbr
-*.tlb
-*.tli
-*.tlh
-*.tmp
-*.tmp_proj
-*.log
-*.vspscc
-*.vssscc
+# DotNetTool artifacts
+.dotnet_tool/
 
-# Visual Studio Code coverage results
-*.coverage
-*.coveragexml
+# NuGet Packages
+*.nupkg
+**/packages/*
 
-# NUNIT
-*.VisualState.xml
-TestResult.xml
-
-# Build results
-[Dd]ebug/
-[Dd]ebugPublic/
-[Rr]elease/
-[Rr]eleases/
-x64/
-x86/
-[Aa][Rr][Mm]/
-[Aa][Rr][Mm]64/
-bld/
-[Bb]in/
-[Oo]bj/
-[Ll]og/
-[Ll]ogs/
-
-# Publish results
-[Pp]ublish/
-[Pp]ublishProfiles/
-
-# SQL Server files
-*.mdf
-*.ldf
-
-# Business Intelligence projects
-*.rdl.data
-*.bim.layout
-*.bim_*.settings
-*.bim
-*.rptproj.user
-
-# RIA/Silverlight projects
-Generated_Code/
-
-# Windows Store app package directories and files
-AppPackages/
-BundleArtifacts/
-Package.StoreAssociation.xml
-_pkginfo.txt
-
-# Windows 8 project folders
-[Bb]uild[Aa]ppx[Dd]ir/
-
-# node.js tools for Visual Studio
-.vs/
-
-# Visual Studio 2019 (16.x) cache/options directory
-.vs/
-
-# Roslyn
-*.ide-shm
-*.ide-wal
-.vs/
-
-# Azure DevOps
-.vs/
-.vs/Microsoft/VisualStudio/16.0/
-.vs/Microsoft/VisualStudio/16.0/Server/
-.vs/Microsoft/VisualStudio/16.0/WindowsAzure/
-.vs/Microsoft/VisualStudio/16.0/TF/
-
-# Local History for Visual Studio
-.localhistory
-
-# JetBrains Rider
-.idea/
-
-# macOS Finder metadata
-.DS_Store
+# Ensure that the next line is at the end of this file
+!/.gitignore
