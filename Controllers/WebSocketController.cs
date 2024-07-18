@@ -72,31 +72,31 @@ namespace CS203XAPI.Controllers
             }
         }
 
-        public static async void SendTag(string tag)
+       public static async void SendTag(string tag)
+{
+    var buffer = Encoding.UTF8.GetBytes(tag);
+    var tasks = new List<Task>();
+
+    lock (_lock)
+    {
+        foreach (var socket in _sockets)
         {
-            var buffer = Encoding.UTF8.GetBytes(tag);
-            var tasks = new List<Task>();
-
-            lock (_lock)
+            if (socket.State == WebSocketState.Open)
             {
-                foreach (var socket in _sockets)
-                {
-                    if (socket.State == WebSocketState.Open)
-                    {
-                        tasks.Add(socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None));
-                    }
-                }
-            }
-
-            try
-            {
-                await Task.WhenAll(tasks);
-            }
-            catch (Exception ex)
-            {
-                // Log the error
-                Console.WriteLine($"Error sending tag via WebSocket: {ex.Message}");
+                tasks.Add(socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None));
             }
         }
+    }
+
+    try
+    {
+        await Task.WhenAll(tasks);
+    }
+    catch (Exception ex)
+    {
+        // Log the error
+        Console.WriteLine($"Error sending tag via WebSocket: {ex.Message}");
+    }
+}
     }
 }
