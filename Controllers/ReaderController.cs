@@ -56,14 +56,23 @@ namespace CS203XAPI.Controllers
 
                 try
                 {
-
                     // Verificar si el socket está conectado
-                    if (!IsSocketConnected(ip, 1515, 10, 5000)) // Ajusta los valores de maxRetries y retryDelayMilliseconds según sea necesario
+                    bool isConnected;
+                    try
+                    {
+                        isConnected = IsSocketConnected(ip, 1515);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, $"Error al verificar la conexión del socket a la IP {ip}");
+                        continue;
+                    }
+
+                    if (!isConnected)
                     {
                         _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto 1515");
                         continue;
                     }
-
 
                     reader = new HighLevelInterface();
                     var ret = reader.Connect(ip, 40000);
@@ -113,6 +122,7 @@ namespace CS203XAPI.Controllers
 
             return Ok("Lectores iniciados con éxito");
         }
+
 
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
@@ -313,7 +323,7 @@ namespace CS203XAPI.Controllers
 
                     try
                     {
-                        if (!IsSocketConnected(reader.IPAddress, 1515, maxRetries, 2000))
+                        if (!IsSocketConnected(reader.IPAddress, 1515))
                         {
                             _logger.LogWarning($"Socket is not connected for IP: {reader.IPAddress}, retrying ({retryCount}/{maxRetries})...");
                             Thread.Sleep(2000);
@@ -476,44 +486,38 @@ namespace CS203XAPI.Controllers
         }
 
         // Método para verificar si el socket está conectado con manejo de reintentos
-        private bool IsSocketConnected(string ip, int port, int maxRetries = 10, int retryDelayMilliseconds = 5000)
+        private bool IsSocketConnected(string ip, int port)
+{
+    try
+    {
+        using (var client = new TcpClient())
         {
-            for (int attempt = 0; attempt < maxRetries; attempt++)
+            var result = client.BeginConnect(ip, port, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10000));
+
+            if (!success)
             {
-                try
-                {
-                    using (var client = new TcpClient())
-                    {
-                        var result = client.BeginConnect(ip, port, null, null);
-                        bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(30));
-
-                        if (!success)
-                        {
-                            _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
-                            Thread.Sleep(retryDelayMilliseconds);
-                            continue;
-                        }
-
-                        client.EndConnect(result);
-                        _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port} en el intento {attempt + 1}");
-                        return true;
-                    }
-                }
-                catch (ObjectDisposedException ex)
-                {
-                    _logger.LogError(ex, $"ObjectDisposedException durante la conexión a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}, intento {attempt + 1} de {maxRetries}");
-                }
-
-                Thread.Sleep(retryDelayMilliseconds);
+                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                return false;
             }
 
-            _logger.LogError($"No se pudo conectar a la IP {ip} en el puerto {port} después de {maxRetries} intentos");
-            return false;
+            client.EndConnect(result);
+            _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
+            return true;
         }
+    }
+    catch (ObjectDisposedException ex)
+    {
+        _logger.LogError(ex, $"ObjectDisposedException durante la conexión a la IP {ip} en el puerto {port}");
+        return false;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
+        return false;
+    }
+}
+
 
         // Método para verificar si la antena tiene GPIO habilitado
         private bool HasGPIO(string ip)
