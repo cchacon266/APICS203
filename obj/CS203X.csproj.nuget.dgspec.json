@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj": {}
+    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\CS203X.csproj": {}
   },
   "projects": {
-    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj": {
+    "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\CS203X.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
+        "projectUniqueName": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\CS203X.csproj",
         "projectName": "CS203X",
-        "projectPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
+        "projectPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\CS203X.csproj",
         "packagesPath": "C:\\Users\\cchac\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\obj\\",
+        "outputPath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\cchac\\AppData\\Roaming\\NuGet\\NuGet.Config",

@@ -80,6 +80,16 @@ namespace CS203XAPI.Controllers
                     reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
                     ReaderList.Add(reader);
                     _logger.LogInformation($"Lector conectado y comenzado en IP: {ip}");
+
+                    // Verificar y registrar si la antena tiene GPIO
+                    if (HasGPIO(ip))
+                    {
+                        _logger.LogInformation($"La antena con IP {ip} tiene semáforo (GPIO).");
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"La antena con IP {ip} no tiene semáforo (GPIO).");
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -404,6 +414,7 @@ namespace CS203XAPI.Controllers
                 // Si la antena tiene GPIO habilitado, manejar el encendido de los LEDs
                 if (HasGPIO(reader.IPAddress))
                 {
+                   // _logger.LogInformation($"La antena con IP {reader.IPAddress} tiene semáforo (GPIO) y está leyendo la etiqueta {e.info.epc.ToString()}");
                     HandleGpioActions(reader, e.info.epc.ToString());
                 }
 
@@ -515,7 +526,7 @@ namespace CS203XAPI.Controllers
         // Método para verificar si la antena tiene GPIO habilitado
         private bool HasGPIO(string ip)
         {
-            var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("antennas");
+            var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
             var filter = Builders<BsonDocument>.Filter.Eq("IP", ip);
             var antenna = antennasCollection.Find(filter).FirstOrDefault();
             return antenna != null && antenna.Contains("GPIO") && antenna["GPIO"].AsBoolean;

@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "cm73kdRCWXOqwpbYBDB8oGom8oM47+ISwrKZ4xDqtCfIJZOg8U7cRbQIm/T4E68dG0xuKZaPYInKTtW5d4PA6Q==",
+  "dgSpecHash": "P/JYhaWwPN+6KMOdGkq6qx+aaQKzm9ZNNRWdC3UnnkTFAGLrkCB/xW38x/Tj2735uoyLv3BwvS1UwY99F9vBHw==",
   "success": true,
-  "projectFilePath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
+  "projectFilePath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\APICS203\\CS203X.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\cchac\\.nuget\\packages\\awssdk.core\\3.7.100.14\\awssdk.core.3.7.100.14.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\awssdk.securitytoken\\3.7.100.14\\awssdk.securitytoken.3.7.100.14.nupkg.sha512",
