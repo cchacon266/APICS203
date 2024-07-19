@@ -39,96 +39,96 @@ namespace CS203XAPI.Controllers
 
         // Método para iniciar la lectura de las antenas
         [HttpPost("start")]
-public IActionResult StartReading([FromBody] StartReadingRequest request)
-{
-    // Verificar si la lista de IPs de los lectores está vacía
-    if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
-    {
-        _logger.LogError("Se requieren las IPs de los lectores");
-        return BadRequest(new { error = "Se requieren las IPs de los lectores" });
-    }
-
-    // Intentar conectar cada lector en la lista de IPs
-    foreach (var ip in request.ReaderIPs)
-    {
-        _logger.LogInformation($"Intentando conectar al lector en IP: {ip}");
-        HighLevelInterface reader = null;
-
-        try
+        public IActionResult StartReading([FromBody] StartReadingRequest request)
         {
-            // Verificar si el socket está conectado
-            if (!IsSocketConnected(ip, 1515))
+            // Verificar si la lista de IPs de los lectores está vacía
+            if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
             {
-                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto 1515");
-                continue;
+                _logger.LogError("Se requieren las IPs de los lectores");
+                return BadRequest(new { error = "Se requieren las IPs de los lectores" });
             }
 
-            reader = new HighLevelInterface();
-            var ret = reader.Connect(ip, 30000);
-
-            _logger.LogInformation($"Resultado de la conexión para la IP {ip}: {ret}");
-            if (ret != CSLibrary.Constants.Result.OK)
+            // Intentar conectar cada lector en la lista de IPs
+            foreach (var ip in request.ReaderIPs)
             {
-                _logger.LogError($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
-                throw new Exception($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
-            }
+                _logger.LogInformation($"Intentando conectar al lector en IP: {ip}");
+                HighLevelInterface reader = null;
 
-            // Configurar eventos y comenzar la operación de lectura
-            reader.OnStateChanged += ReaderXP_StateChangedEvent;
-            reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
-            InventorySetting(reader);
-            reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-            ReaderList.Add(reader);
-            _logger.LogInformation($"Lector conectado y comenzado en IP: {ip}");
-        }
-        catch (Exception ex)
-        {
-            if (reader != null)
-            {
                 try
                 {
-                    reader.Disconnect();
+                    // Verificar si el socket está conectado
+                    if (!IsSocketConnected(ip, 1515))
+                    {
+                        _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto 1515");
+                        continue;
+                    }
+
+                    reader = new HighLevelInterface();
+                    var ret = reader.Connect(ip, 30000);
+
+                    _logger.LogInformation($"Resultado de la conexión para la IP {ip}: {ret}");
+                    if (ret != CSLibrary.Constants.Result.OK)
+                    {
+                        _logger.LogError($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
+                        throw new Exception($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
+                    }
+
+                    // Configurar eventos y comenzar la operación de lectura
+                    reader.OnStateChanged += ReaderXP_StateChangedEvent;
+                    reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
+                    InventorySetting(reader);
+                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                    ReaderList.Add(reader);
+                    _logger.LogInformation($"Lector conectado y comenzado en IP: {ip}");
                 }
-                catch (Exception disconnectEx)
+                catch (Exception ex)
                 {
-                    _logger.LogError(disconnectEx, $"Error desconectando el lector en IP: {ip}");
+                    if (reader != null)
+                    {
+                        try
+                        {
+                            reader.Disconnect();
+                        }
+                        catch (Exception disconnectEx)
+                        {
+                            _logger.LogError(disconnectEx, $"Error desconectando el lector en IP: {ip}");
+                        }
+                    }
+
+                    _logger.LogError(ex, $"Error al conectar al lector en IP: {ip}");
                 }
             }
 
-            _logger.LogError(ex, $"Error al conectar al lector en IP: {ip}");
+            return Ok("Lectores iniciados con éxito");
         }
-    }
 
-    return Ok("Lectores iniciados con éxito");
-}
-
-// Método para verificar si el socket está conectado
-private bool IsSocketConnected(string ip, int port)
-{
-    try
-    {
-        using (var client = new TcpClient())
+        // Método para verificar si el socket está conectado
+        private bool IsSocketConnected(string ip, int port)
         {
-            var result = client.BeginConnect(ip, port, null, null);
-            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
-
-            if (!success)
+            try
             {
-                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(ip, port, null, null);
+                    bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+
+                    if (!success)
+                    {
+                        _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                        return false;
+                    }
+
+                    client.EndConnect(result);
+                    _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
                 return false;
             }
-
-            client.EndConnect(result);
-            _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
-            return true;
         }
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
-        return false;
-    }
-}
 
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
@@ -220,6 +220,23 @@ private bool IsSocketConnected(string ip, int port)
                 return Ok("GPIO triggered");
             }
             return BadRequest("Invalid action or GPIO");
+        }
+
+        // Método para ajustar la potencia de transmisión
+        [HttpPost("setpower")]
+        public IActionResult SetPower([FromBody] SetPowerRequest request)
+        {
+            // Encontrar el lector correspondiente a la IP proporcionada
+            var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
+            if (reader == null)
+            {
+                return BadRequest($"Lector con IP {request.ReaderIP} no encontrado");
+            }
+
+            // Ajustar la potencia de transmisión
+            reader.SetPowerLevel((uint)request.PowerLevel);
+            _logger.LogInformation($"Nivel de potencia ajustado a {request.PowerLevel} dBm para el lector en IP: {request.ReaderIP}");
+            return Ok("Nivel de potencia ajustado correctamente");
         }
 
         // Método para configurar el estado del GPIO 0
@@ -542,6 +559,5 @@ private bool IsSocketConnected(string ip, int port)
                 }
             }
         }
-
     }
 }
