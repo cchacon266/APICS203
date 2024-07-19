@@ -36,7 +36,7 @@ builder.Services.AddSingleton(sp =>
 builder.Services.AddSingleton(sp =>
 {
     var client = sp.GetRequiredService<IMongoClient>();
-    return client.GetDatabase("assets-app-test");
+    return client.GetDatabase("assets-app-doihi");
 });
 
 var app = builder.Build();

@@ -33,7 +33,7 @@ namespace CS203XAPI.Controllers
         public ReaderController(ILogger<ReaderController> logger, IMongoClient mongoClient)
         {
             _logger = logger;
-            _assetsDatabase = mongoClient.GetDatabase("assets-app-test");
+            _assetsDatabase = mongoClient.GetDatabase("assets-app-doihi");
             _antennasDatabase = mongoClient.GetDatabase("assets-app-antenas");
         }
 
