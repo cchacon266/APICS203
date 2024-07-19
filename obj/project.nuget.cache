@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "rGFCoi6Gkc6ARdzyamn/RsAz4t93JxIRBphrrnGrQwXfLBfpVGzae71j8GIIioIYU98nTBcxiuhA8ShWfZsEDQ==",
+  "dgSpecHash": "cm73kdRCWXOqwpbYBDB8oGom8oM47+ISwrKZ4xDqtCfIJZOg8U7cRbQIm/T4E68dG0xuKZaPYInKTtW5d4PA6Q==",
   "success": true,
   "projectFilePath": "C:\\Users\\cchac\\Documentos\\Tagventory\\APICSL203X\\CS203X\\CS203X.csproj",
   "expectedPackageFiles": [
@@ -25,6 +25,7 @@
     "C:\\Users\\cchac\\.nuget\\packages\\mongodb.driver\\2.27.0\\mongodb.driver.2.27.0.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\mongodb.driver.core\\2.27.0\\mongodb.driver.core.2.27.0.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\mongodb.libmongocrypt\\1.10.0\\mongodb.libmongocrypt.1.10.0.nupkg.sha512",
+    "C:\\Users\\cchac\\.nuget\\packages\\nodatime\\3.1.11\\nodatime.3.1.11.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\runtime.linux-arm.runtime.native.system.io.ports\\7.0.0\\runtime.linux-arm.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\runtime.linux-arm64.runtime.native.system.io.ports\\7.0.0\\runtime.linux-arm64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",
     "C:\\Users\\cchac\\.nuget\\packages\\runtime.linux-x64.runtime.native.system.io.ports\\7.0.0\\runtime.linux-x64.runtime.native.system.io.ports.7.0.0.nupkg.sha512",

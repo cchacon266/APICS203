@@ -51,6 +51,7 @@ C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\MongoDB.
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\MongoDB.Driver.dll
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\MongoDB.Driver.Core.dll
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\MongoDB.Libmongocrypt.dll
+C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\NodaTime.dll
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\SharpCompress.dll
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\Snappier.dll
 C:\Users\cchac\Documentos\Tagventory\APICSL203X\CS203X\bin\Debug\net6.0\System.IO.Ports.dll
