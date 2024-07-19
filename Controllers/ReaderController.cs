@@ -39,54 +39,96 @@ namespace CS203XAPI.Controllers
 
         // Método para iniciar la lectura de las antenas
         [HttpPost("start")]
-        public IActionResult StartReading([FromBody] StartReadingRequest request)
+public IActionResult StartReading([FromBody] StartReadingRequest request)
+{
+    // Verificar si la lista de IPs de los lectores está vacía
+    if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
+    {
+        _logger.LogError("Se requieren las IPs de los lectores");
+        return BadRequest(new { error = "Se requieren las IPs de los lectores" });
+    }
+
+    // Intentar conectar cada lector en la lista de IPs
+    foreach (var ip in request.ReaderIPs)
+    {
+        _logger.LogInformation($"Intentando conectar al lector en IP: {ip}");
+        HighLevelInterface reader = null;
+
+        try
         {
-            if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
+            // Verificar si el socket está conectado
+            if (!IsSocketConnected(ip, 1515))
             {
-                _logger.LogError("Reader IPs are required");
-                return BadRequest(new { error = "Reader IPs are required" });
+                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto 1515");
+                continue;
             }
 
-            foreach (var ip in request.ReaderIPs)
-            {
-                if (string.IsNullOrWhiteSpace(ip) || ip == "0.0.0.0")
-                {
-                    _logger.LogError($"Invalid IP address: {ip}");
-                    continue;
-                }
+            reader = new HighLevelInterface();
+            var ret = reader.Connect(ip, 30000);
 
+            _logger.LogInformation($"Resultado de la conexión para la IP {ip}: {ret}");
+            if (ret != CSLibrary.Constants.Result.OK)
+            {
+                _logger.LogError($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
+                throw new Exception($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
+            }
+
+            // Configurar eventos y comenzar la operación de lectura
+            reader.OnStateChanged += ReaderXP_StateChangedEvent;
+            reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
+            InventorySetting(reader);
+            reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+            ReaderList.Add(reader);
+            _logger.LogInformation($"Lector conectado y comenzado en IP: {ip}");
+        }
+        catch (Exception ex)
+        {
+            if (reader != null)
+            {
                 try
                 {
-                    _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
-                    HighLevelInterface reader = new HighLevelInterface();
-                    var ret = reader.Connect(ip, 30000);
-                    _logger.LogInformation($"Connection result for IP {ip}: {ret}");
-                    if (ret != CSLibrary.Constants.Result.OK)
-                    {
-                        _logger.LogError($"Cannot connect to reader with IP: {ip}. Error code: {ret}");
-                        continue;
-                    }
-
-                    reader.OnStateChanged += ReaderXP_StateChangedEvent;
-                    reader.OnAsyncCallback += ReaderXP_TagInventoryEvent;
-                    InventorySetting(reader);
-                    reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                    ReaderList.Add(reader);
-                    _logger.LogInformation($"Reader connected and started at IP: {ip}");
-
-                    // Verificar si la antena tiene GPIO habilitado y encender el LED verde si es así
-                    if (HasGPIO(ip))
-                    {
-                        SetGPO0(reader, true); // Encender LED verde
-                    }
+                    reader.Disconnect();
                 }
-                catch (Exception ex)
+                catch (Exception disconnectEx)
                 {
-                    _logger.LogError(ex, $"Exception during connection to IP {ip}");
+                    _logger.LogError(disconnectEx, $"Error desconectando el lector en IP: {ip}");
                 }
             }
-            return Ok("Readers started successfully");
+
+            _logger.LogError(ex, $"Error al conectar al lector en IP: {ip}");
         }
+    }
+
+    return Ok("Lectores iniciados con éxito");
+}
+
+// Método para verificar si el socket está conectado
+private bool IsSocketConnected(string ip, int port)
+{
+    try
+    {
+        using (var client = new TcpClient())
+        {
+            var result = client.BeginConnect(ip, port, null, null);
+            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(5));
+
+            if (!success)
+            {
+                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                return false;
+            }
+
+            client.EndConnect(result);
+            _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
+            return true;
+        }
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
+        return false;
+    }
+}
 
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
