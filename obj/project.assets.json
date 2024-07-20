@@ -1,7 +1,7 @@
 {
   "version": 3,
   "targets": {
-    "net6.0": {
+    "net7.0": {
       "AWSSDK.Core/3.7.100.14": {
         "type": "package",
         "compile": {
@@ -475,12 +475,12 @@
           "runtime.native.System.IO.Ports": "7.0.0"
         },
         "compile": {
-          "lib/net6.0/System.IO.Ports.dll": {
+          "lib/net7.0/System.IO.Ports.dll": {
             "related": ".xml"
           }
         },
         "runtime": {
-          "lib/net6.0/System.IO.Ports.dll": {
+          "lib/net7.0/System.IO.Ports.dll": {
             "related": ".xml"
           }
         },
@@ -488,11 +488,11 @@
           "buildTransitive/net6.0/_._": {}
         },
         "runtimeTargets": {
-          "runtimes/unix/lib/net6.0/System.IO.Ports.dll": {
+          "runtimes/unix/lib/net7.0/System.IO.Ports.dll": {
             "assetType": "runtime",
             "rid": "unix"
           },
-          "runtimes/win/lib/net6.0/System.IO.Ports.dll": {
+          "runtimes/win/lib/net7.0/System.IO.Ports.dll": {
             "assetType": "runtime",
             "rid": "win"
           }
@@ -591,10 +591,10 @@
       "ZstdSharp.Port/0.7.3": {
         "type": "package",
         "compile": {
-          "lib/net6.0/ZstdSharp.dll": {}
+          "lib/net7.0/ZstdSharp.dll": {}
         },
         "runtime": {
-          "lib/net6.0/ZstdSharp.dll": {}
+          "lib/net7.0/ZstdSharp.dll": {}
         }
       }
     }
@@ -1456,7 +1456,7 @@
     }
   },
   "projectFileDependencyGroups": {
-    "net6.0": [
+    "net7.0": [
       "Microsoft.AspNetCore.WebSockets >= 2.2.1",
       "Microsoft.Extensions.Logging >= 5.0.0",
       "MongoDB.Driver >= 2.27.0",
@@ -1481,7 +1481,7 @@
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
-        "net6.0"
+        "net7.0"
       ],
       "sources": {
         "C:\\Program Files (x86)\\Microsoft SDKs\\NuGetPackages\\": {},
@@ -1489,8 +1489,8 @@
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
-        "net6.0": {
-          "targetAlias": "net6.0",
+        "net7.0": {
+          "targetAlias": "net7.0",
           "projectReferences": {}
         }
       },
@@ -1501,8 +1501,8 @@
       }
     },
     "frameworks": {
-      "net6.0": {
-        "targetAlias": "net6.0",
+      "net7.0": {
+        "targetAlias": "net7.0",
         "dependencies": {
           "Microsoft.AspNetCore.WebSockets": {
             "target": "Package",

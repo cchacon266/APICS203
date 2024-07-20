@@ -95,11 +95,14 @@ namespace CS203XAPI.Controllers
                     // Verificar y registrar si la antena tiene GPIO
                     if (HasGPIO(ip))
                     {
+                        SetGPO0(reader, false);
                         _logger.LogInformation($"La antena con IP {ip} tiene semáforo (GPIO).");
+                        SetGPO0(reader, true); // Encender LED verde si tiene semaforo
                     }
                     else
                     {
                         _logger.LogInformation($"La antena con IP {ip} no tiene semáforo (GPIO).");
+
                     }
                 }
                 catch (Exception ex)
@@ -126,27 +129,48 @@ namespace CS203XAPI.Controllers
 
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
-        public IActionResult StopReading()
+        public IActionResult StopReading([FromBody] StopReadingRequest request)
         {
-            _logger.LogInformation("Stopping all readers");
+            if (string.IsNullOrWhiteSpace(request.ReaderIP))
+            {
+                _logger.LogError("Reader IP is required to stop reading");
+                return BadRequest(new { error = "Reader IP is required" });
+            }
+
+            _logger.LogInformation($"Stopping reader with IP: {request.ReaderIP}");
             lock (StateChangedLock)
             {
-                foreach (var reader in ReaderList)
+                var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
+                if (reader != null)
                 {
                     try
                     {
+                        // Apagar el semáforo verde (asumimos que el LED verde está controlado por GPO0)
+                        if (HasGPIO(request.ReaderIP))
+                        {
+                            SetGPO0(reader, false);
+                        }
+
                         reader.StopOperation(true);
                         reader.Disconnect();
+                        ReaderList.Remove(reader);
+                        _logger.LogInformation($"Reader with IP {request.ReaderIP} stopped successfully");
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error stopping reader");
+                        _logger.LogError(ex, $"Error stopping reader with IP: {request.ReaderIP}");
+                        return StatusCode(500, $"Error stopping reader with IP: {request.ReaderIP}");
                     }
                 }
-                ReaderList.Clear();
+                else
+                {
+                    _logger.LogWarning($"Reader with IP {request.ReaderIP} not found");
+                    return NotFound(new { error = $"Reader with IP {request.ReaderIP} not found" });
+                }
             }
-            return Ok("Readers stopped successfully");
+            return Ok($"Reader with IP {request.ReaderIP} stopped successfully");
         }
+
 
         // Método para obtener las etiquetas leídas
         [HttpGet("tags")]
@@ -487,36 +511,36 @@ namespace CS203XAPI.Controllers
 
         // Método para verificar si el socket está conectado con manejo de reintentos
         private bool IsSocketConnected(string ip, int port)
-{
-    try
-    {
-        using (var client = new TcpClient())
         {
-            var result = client.BeginConnect(ip, port, null, null);
-            bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10000));
-
-            if (!success)
+            try
             {
-                _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                using (var client = new TcpClient())
+                {
+                    var result = client.BeginConnect(ip, port, null, null);
+                    bool success = result.AsyncWaitHandle.WaitOne(TimeSpan.FromSeconds(10000));
+
+                    if (!success)
+                    {
+                        _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto {port}");
+                        return false;
+                    }
+
+                    client.EndConnect(result);
+                    _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
+                    return true;
+                }
+            }
+            catch (ObjectDisposedException ex)
+            {
+                _logger.LogError(ex, $"ObjectDisposedException durante la conexión a la IP {ip} en el puerto {port}");
                 return false;
             }
-
-            client.EndConnect(result);
-            _logger.LogInformation($"Conexión exitosa a la IP {ip} en el puerto {port}");
-            return true;
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
+                return false;
+            }
         }
-    }
-    catch (ObjectDisposedException ex)
-    {
-        _logger.LogError(ex, $"ObjectDisposedException durante la conexión a la IP {ip} en el puerto {port}");
-        return false;
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, $"Excepción durante la conexión a la IP {ip} en el puerto {port}");
-        return false;
-    }
-}
 
 
         // Método para verificar si la antena tiene GPIO habilitado
@@ -535,34 +559,50 @@ namespace CS203XAPI.Controllers
             var filter = Builders<BsonDocument>.Filter.Eq("EPC", epc);
             var asset = assetsCollection.Find(filter).FirstOrDefault();
 
-            if (asset == null)
-            {
-                // El LED rojo se enciende si la categoría del EPC no se encuentra en la base de datos de excepciones
-                var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("exceptions");
-                var category = asset["category"]["label"].AsString;
-                var exceptionFilter = Builders<BsonDocument>.Filter.Eq("category", category);
-                var exception = exceptionsCollection.Find(exceptionFilter).FirstOrDefault();
+            bool isException = false;
 
-                if (exception != null)
+            // El LED rojo se enciende si la categoría del EPC o el EPC mismo se encuentran en la base de datos de excepciones
+            var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
+
+            // Verificar si el EPC está en la base de datos de excepciones
+            var epcFilter = Builders<BsonDocument>.Filter.Eq("EPC", epc);
+            var epcException = exceptionsCollection.Find(epcFilter).FirstOrDefault();
+            if (epcException != null)
+            {
+                isException = true;
+            }
+
+            // Verificar si la categoría está en la base de datos de excepciones
+            if (asset != null)
+            {
+                var category = asset["category"]["label"].AsString;
+                var categoryFilter = Builders<BsonDocument>.Filter.Eq("category", category);
+                var categoryException = exceptionsCollection.Find(categoryFilter).FirstOrDefault();
+                if (categoryException != null)
                 {
-                    DateTime lastReadTime;
-                    if (TagsDict.TryGetValue($"{reader.IPAddress}: {epc}", out lastReadTime))
+                    isException = true;
+                }
+            }
+
+            if (!isException)
+            {
+                DateTime lastReadTime;
+                if (TagsDict.TryGetValue($"{reader.IPAddress}: {epc}", out lastReadTime))
+                {
+                    // Verificar si han pasado al menos 3 minutos desde la última activación del LED rojo
+                    if ((DateTime.Now - lastReadTime).TotalMinutes >= 3)
                     {
-                        // Verificar si han pasado al menos 3 minutos desde la última activación del LED rojo
-                        if ((DateTime.Now - lastReadTime).TotalMinutes >= 3)
-                        {
-                            SetGPO1(reader, true); // Encender LED rojo
-                            Task.Delay(15000).ContinueWith(t => SetGPO1(reader, false)); // Apagar LED rojo después de 15 segundos
-                            TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Actualizar la última hora de activación
-                        }
-                    }
-                    else
-                    {
-                        // Si es la primera vez que se lee el EPC o no se encuentra en TagsDict
                         SetGPO1(reader, true); // Encender LED rojo
                         Task.Delay(15000).ContinueWith(t => SetGPO1(reader, false)); // Apagar LED rojo después de 15 segundos
-                        TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Guardar la hora de activación
+                        TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Actualizar la última hora de activación
                     }
+                }
+                else
+                {
+                    // Si es la primera vez que se lee el EPC o no se encuentra en TagsDict
+                    SetGPO1(reader, true); // Encender LED rojo
+                    Task.Delay(15000).ContinueWith(t => SetGPO1(reader, false)); // Apagar LED rojo después de 15 segundos
+                    TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Guardar la hora de activación
                 }
             }
         }
