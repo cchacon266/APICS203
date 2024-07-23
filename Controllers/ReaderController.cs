@@ -318,7 +318,9 @@ namespace CS203XAPI.Controllers
             {
                 DateTime reconnTimer = DateTime.Now;
                 int retryCount = 0;
-                int maxRetries = 5;
+                int maxRetries = 2;
+                int retryDelaySeconds = 10;
+
 
                 _logger.LogInformation($"Intentando reconectar el lector en IP: {reader.IPAddress}");
 
@@ -337,7 +339,7 @@ namespace CS203XAPI.Controllers
                         if (!IsSocketConnected(reader.IPAddress, 1515))
                         {
                             _logger.LogWarning($"Socket is not connected for IP: {reader.IPAddress}, retrying ({retryCount}/{maxRetries})...");
-                            Thread.Sleep(2000);
+                            Thread.Sleep(retryDelaySeconds * 1000);
                             continue;
                         }
 
@@ -371,7 +373,7 @@ namespace CS203XAPI.Controllers
                         _logger.LogError(ex, $"Excepción capturada durante la reconexión para el lector en IP: {reader.IPAddress}");
                     }
 
-                    Thread.Sleep(2000);
+                    Thread.Sleep(retryDelaySeconds * 1000);
                 }
 
                 _logger.LogInformation($" Intentos de reconexión para el lector en IP: {reader.IPAddress} completados con {retryCount} intentos.");
@@ -615,7 +617,7 @@ namespace CS203XAPI.Controllers
                     DateTime lastLoggedTime;
                     if (!LastLoggedTimeDict.TryGetValue(epc, out lastLoggedTime) || (DateTime.Now - lastLoggedTime).TotalSeconds >= LogIntervalSeconds)
                     {
-                        _logger.LogInformation($"El EPC {epc} fue leído en IP {reader.IPAddress} hace menos de 1 minutos.");
+                        //_logger.LogInformation($"El EPC {epc} fue leído en IP {reader.IPAddress} hace menos de 1 minutos.");
                         LastLoggedTimeDict[epc] = DateTime.Now;
                     }
                 }
