@@ -20,7 +20,6 @@ namespace CS203XAPI.Controllers
         // Lista de lectores conectados
         private static List<HighLevelInterface> ReaderList = new List<HighLevelInterface>();
         // Diccionario para almacenar etiquetas y su último tiempo de lectura
-        private static Dictionary<string, DateTime> TagsDict = new Dictionary<string, DateTime>();
         private static object StateChangedLock = new object();
         private static object TagInventoryLock = new object();
         private readonly ILogger<ReaderController> _logger;
@@ -28,6 +27,10 @@ namespace CS203XAPI.Controllers
         private readonly IMongoDatabase _antennasDatabase;
         private static int antCycleEndCount = 0;
         private const int AntCycleEndLogInterval = 100;
+        private static Dictionary<string, DateTime> LastLoggedTimeDict = new Dictionary<string, DateTime>();
+        private const int LogIntervalSeconds = 60; // Intervalo de tiempo en segundos para registrar el mismo mensaje
+
+
 
         // Constructor que inicializa las bases de datos y el logger
         public ReaderController(ILogger<ReaderController> logger, IMongoClient mongoClient)
@@ -175,21 +178,23 @@ namespace CS203XAPI.Controllers
         [HttpGet("tags")]
         public IActionResult GetTags()
         {
-            lock (TagInventoryLock)
+            var readsCollection = _antennasDatabase.GetCollection<BsonDocument>("Reads");
+            var allReads = readsCollection.Find(new BsonDocument()).ToList();
+            var tagsWithTimestamp = new List<object>();
+
+            foreach (var read in allReads)
             {
-                var tagsWithTimestamp = new List<object>();
-                foreach (var tag in TagsDict)
+                tagsWithTimestamp.Add(new
                 {
-                    tagsWithTimestamp.Add(new
-                    {
-                        IP = tag.Key.Split(':')[0],
-                        Tag = tag.Key.Split(':')[1].Trim(),
-                        LastReadTime = tag.Value.ToString("dd-MM-yyyy HH:mm") // Formatear la fecha y hora
-                    });
-                }
-                return Ok(tagsWithTimestamp);
+                    IP = read["IP"].AsString,
+                    Tag = read["tag"].AsString,
+                    LastReadTime = read["lastReadTime"].ToString() // Formatear la fecha y hora si es necesario
+                });
             }
+
+            return Ok(tagsWithTimestamp);
         }
+
 
         // Método para obtener la lista de antenas conectadas
         [HttpGet("list")]
@@ -280,7 +285,7 @@ namespace CS203XAPI.Controllers
                     antCycleEndCount++;
                     if (antCycleEndCount % AntCycleEndLogInterval == 0)
                     {
-                        _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
+                        //_logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
                     }
                 }
                 else
@@ -359,6 +364,13 @@ namespace CS203XAPI.Controllers
                             _logger.LogInformation($"Successfully reconnected reader at IP: {reader.IPAddress}");
                             InventorySetting(reader);
                             reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
+                            
+                            // Encender semáforo verde después de la reconexión
+                            if (HasGPIO(reader.IPAddress))
+                            {
+                                SetGPO0(reader, true); // Encender LED verde
+                            }
+
                             break;
                         }
                         else
@@ -424,7 +436,6 @@ namespace CS203XAPI.Controllers
                 }
 
                 // Actualiza la hora de lectura de la etiqueta después de manejar el GPIO
-                TagsDict[tag] = DateTime.Now;
                 UpdateReadsCollection(reader.IPAddress, e.info.epc.ToString());
 
                 // Enviar la etiqueta a través de WebSocket
@@ -604,20 +615,26 @@ namespace CS203XAPI.Controllers
                 var update = Builders<BsonDocument>.Update.Set("lastReadTime", DateTime.Now.ToString("dd-MM-yyyy HH:mm"));
                 readsCollection.UpdateOne(readsFilter, update, new UpdateOptions { IsUpsert = true });
 
-                // Verificar si el EPC es nuevo o si han pasado al menos 3 minutos desde la última activación del LED rojo
-                if (isNewTag || (DateTime.Now - lastReadTime).TotalMinutes >= 3)
+                // Verificar si el EPC es nuevo o si han pasado al menos X minutos desde la última activación del LED rojo
+                if (isNewTag || (DateTime.Now - lastReadTime).TotalMinutes >= 1)
                 {
                     _logger.LogInformation($"Encendiendo LED rojo para EPC {epc} en IP {reader.IPAddress}.");
 
-                    SetGPO1(reader, true); // Encender LED rojo
+                    SetGPO1(reader, true);
                     Task.Delay(15000).ContinueWith(t =>
                     {
-                        SetGPO1(reader, false); // Apagar LED rojo después de 15 segundos
+                        SetGPO1(reader, false);
                     });
                 }
                 else
                 {
-                    _logger.LogInformation($"El EPC {epc} fue leído en IP {reader.IPAddress} hace menos de 3 minutos.");
+                    // Registrar el mensaje solo si ha pasado el intervalo de tiempo definido
+                    DateTime lastLoggedTime;
+                    if (!LastLoggedTimeDict.TryGetValue(epc, out lastLoggedTime) || (DateTime.Now - lastLoggedTime).TotalSeconds >= LogIntervalSeconds)
+                    {
+                        _logger.LogInformation($"El EPC {epc} fue leído en IP {reader.IPAddress} hace menos de 1 minutos.");
+                        LastLoggedTimeDict[epc] = DateTime.Now;
+                    }
                 }
             }
         }
