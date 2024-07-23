@@ -95,7 +95,6 @@ namespace CS203XAPI.Controllers
                     // Verificar y registrar si la antena tiene GPIO
                     if (HasGPIO(ip))
                     {
-                        SetGPO0(reader, false);
                         _logger.LogInformation($"La antena con IP {ip} tiene semáforo (GPIO).");
                         SetGPO0(reader, true); // Encender LED verde si tiene semaforo
                     }
@@ -418,14 +417,15 @@ namespace CS203XAPI.Controllers
 
                 if (!IsTagInDatabase(e.info.epc.ToString())) return;
 
-                TagsDict[tag] = DateTime.Now; // Actualiza la hora de lectura de la etiqueta
-                UpdateReadsCollection(reader.IPAddress, e.info.epc.ToString());
-
-                // Si la antena tiene GPIO habilitado, manejar el encendido de los LEDs
+                // Si la antena tiene GPIO habilitado, manejar el encendido de los LEDs antes de actualizar la hora
                 if (HasGPIO(reader.IPAddress))
                 {
                     HandleGpioActions(reader, e.info.epc.ToString());
                 }
+
+                // Actualiza la hora de lectura de la etiqueta después de manejar el GPIO
+                TagsDict[tag] = DateTime.Now;
+                UpdateReadsCollection(reader.IPAddress, e.info.epc.ToString());
 
                 // Enviar la etiqueta a través de WebSocket
                 try
@@ -586,25 +586,42 @@ namespace CS203XAPI.Controllers
 
             if (!isException)
             {
-                DateTime lastReadTime;
-                if (TagsDict.TryGetValue($"{reader.IPAddress}: {epc}", out lastReadTime))
+                // Consultar la última hora de lectura desde la base de datos
+                var readsCollection = _antennasDatabase.GetCollection<BsonDocument>("Reads");
+                var readsFilter = Builders<BsonDocument>.Filter.Eq("tag", epc) & Builders<BsonDocument>.Filter.Eq("IP", reader.IPAddress);
+                var readEntry = readsCollection.Find(readsFilter).FirstOrDefault();
+
+                DateTime lastReadTime = DateTime.MinValue;
+                bool isNewTag = true;
+
+                if (readEntry != null)
                 {
-                    // Verificar si han pasado al menos 3 minutos desde la última activación del LED rojo
-                    if ((DateTime.Now - lastReadTime).TotalMinutes >= 3)
+                    isNewTag = false;
+                    lastReadTime = DateTime.ParseExact(readEntry["lastReadTime"].AsString, "dd-MM-yyyy HH:mm", null);
+                }
+
+                // Actualizar la última hora de activación en la base de datos antes de encender el LED
+                var update = Builders<BsonDocument>.Update.Set("lastReadTime", DateTime.Now.ToString("dd-MM-yyyy HH:mm"));
+                readsCollection.UpdateOne(readsFilter, update, new UpdateOptions { IsUpsert = true });
+
+                // Verificar si el EPC es nuevo o si han pasado al menos 3 minutos desde la última activación del LED rojo
+                if (isNewTag || (DateTime.Now - lastReadTime).TotalMinutes >= 3)
+                {
+                    _logger.LogInformation($"Encendiendo LED rojo para EPC {epc} en IP {reader.IPAddress}.");
+
+                    SetGPO1(reader, true); // Encender LED rojo
+                    Task.Delay(15000).ContinueWith(t =>
                     {
-                        SetGPO1(reader, true); // Encender LED rojo
-                        Task.Delay(15000).ContinueWith(t => SetGPO1(reader, false)); // Apagar LED rojo después de 15 segundos
-                        TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Actualizar la última hora de activación
-                    }
+                        SetGPO1(reader, false); // Apagar LED rojo después de 15 segundos
+                    });
                 }
                 else
                 {
-                    // Si es la primera vez que se lee el EPC o no se encuentra en TagsDict
-                    SetGPO1(reader, true); // Encender LED rojo
-                    Task.Delay(15000).ContinueWith(t => SetGPO1(reader, false)); // Apagar LED rojo después de 15 segundos
-                    TagsDict[$"{reader.IPAddress}: {epc}"] = DateTime.Now; // Guardar la hora de activación
+                    _logger.LogInformation($"El EPC {epc} fue leído en IP {reader.IPAddress} hace menos de 3 minutos.");
                 }
             }
         }
+
     }
 }
+
