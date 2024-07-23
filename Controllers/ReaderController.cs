@@ -244,23 +244,6 @@ namespace CS203XAPI.Controllers
             return BadRequest("Invalid action or GPIO");
         }
 
-        // Método para ajustar la potencia de transmisión
-        [HttpPost("setpower")]
-        public IActionResult SetPower([FromBody] SetPowerRequest request)
-        {
-            // Encontrar el lector correspondiente a la IP proporcionada
-            var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
-            if (reader == null)
-            {
-                return BadRequest($"Lector con IP {request.ReaderIP} no encontrado");
-            }
-
-            // Ajustar la potencia de transmisión
-            reader.SetPowerLevel((uint)request.PowerLevel);
-            _logger.LogInformation($"Nivel de potencia ajustado a {request.PowerLevel} dBm para el lector en IP: {request.ReaderIP}");
-            return Ok("Nivel de potencia ajustado correctamente");
-        }
-
         // Método para configurar el estado del GPIO 0
         private void SetGPO0(HighLevelInterface reader, bool state)
         {
@@ -285,12 +268,12 @@ namespace CS203XAPI.Controllers
                     antCycleEndCount++;
                     if (antCycleEndCount % AntCycleEndLogInterval == 0)
                     {
-                        //_logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
+                        //_logger.LogInformation($"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: FIN_CICLO_ANT (registrado cada {AntCycleEndLogInterval} ocurrencias)");
                     }
                 }
                 else
                 {
-                    _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
+                    _logger.LogInformation($"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: {e.state}");
                 }
 
                 switch (e.state)
@@ -317,10 +300,10 @@ namespace CS203XAPI.Controllers
                 case 0x000:
                     break;
                 case 0x306:
-                    RestartReader(reader, "Reader too hot", 180);
+                    RestartReader(reader, "Lector demasiado caliente", 180);
                     break;
                 case 0x309:
-                    RestartReader(reader, "Reflected power too high", 3);
+                    RestartReader(reader, "Potencia reflejada demasiado alta", 3);
                     break;
                 default:
                     _logger.LogError($"Mac Error: 0x{reader.LastMacErrorCode:X}, please report to CSL technical support.");
@@ -337,7 +320,7 @@ namespace CS203XAPI.Controllers
                 int retryCount = 0;
                 int maxRetries = 5;
 
-                _logger.LogInformation($"Attempting to reconnect reader at IP: {reader.IPAddress}");
+                _logger.LogInformation($"Intentando reconectar el lector en IP: {reader.IPAddress}");
 
                 while (retryCount < maxRetries)
                 {
@@ -345,7 +328,7 @@ namespace CS203XAPI.Controllers
 
                     if (string.IsNullOrWhiteSpace(reader.IPAddress) || reader.IPAddress == "0.0.0.0")
                     {
-                        _logger.LogError($"Invalid IP address for reconnection: {reader.IPAddress}");
+                        _logger.LogError($"IDirección IP inválida para la reconexión: {reader.IPAddress}");
                         break;
                     }
 
@@ -361,10 +344,10 @@ namespace CS203XAPI.Controllers
                         var result = reader.Reconnect(1);
                         if (result == CSLibrary.Constants.Result.OK)
                         {
-                            _logger.LogInformation($"Successfully reconnected reader at IP: {reader.IPAddress}");
+                            _logger.LogInformation($"Reconexión exitosa del lector en IP: {reader.IPAddress}");
                             InventorySetting(reader);
                             reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
-                            
+
                             // Encender semáforo verde después de la reconexión
                             if (HasGPIO(reader.IPAddress))
                             {
@@ -375,23 +358,23 @@ namespace CS203XAPI.Controllers
                         }
                         else
                         {
-                            _logger.LogWarning($"Reconnection attempt failed for reader at IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})");
+                            _logger.LogWarning($"Intento de reconexión fallido para el lector en IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})");
                         }
                     }
                     catch (ObjectDisposedException ex)
                     {
-                        _logger.LogError(ex, $"ObjectDisposedException caught during reconnection for reader at IP: {reader.IPAddress}");
+                        _logger.LogError(ex, $"ObjectDisposedException capturada durante la reconexión para el lector en IP: {reader.IPAddress}");
                         break;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, $"Exception caught during reconnection for reader at IP: {reader.IPAddress}");
+                        _logger.LogError(ex, $"Excepción capturada durante la reconexión para el lector en IP: {reader.IPAddress}");
                     }
 
                     Thread.Sleep(2000);
                 }
 
-                _logger.LogInformation($"Reconnection attempts for reader at IP: {reader.IPAddress} completed with {retryCount} attempts.");
+                _logger.LogInformation($" Intentos de reconexión para el lector en IP: {reader.IPAddress} completados con {retryCount} intentos.");
             })
             {
                 IsBackground = true
@@ -402,7 +385,7 @@ namespace CS203XAPI.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, $"Exception caught while starting reconnection thread for reader at IP: {reader.IPAddress}");
+                _logger.LogError(ex, $"Excepción capturada al iniciar el hilo de reconexión para el lector en IP: {reader.IPAddress}");
             }
         }
 
@@ -638,7 +621,6 @@ namespace CS203XAPI.Controllers
                 }
             }
         }
-
     }
 }
 
