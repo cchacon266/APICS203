@@ -24,9 +24,6 @@ builder.Services.AddCors(options =>
 builder.Services.AddSingleton<IMongoClient>(s =>
     new MongoClient(builder.Configuration.GetConnectionString("MongoDbAntennas")));
 
-builder.Services.AddSingleton<IMongoClient>(s =>
-    new MongoClient(builder.Configuration.GetConnectionString("MongoDbAssets")));
-
 builder.Services.AddSingleton(sp =>
 {
     var client = sp.GetRequiredService<IMongoClient>();
