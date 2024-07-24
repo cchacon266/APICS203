@@ -188,7 +188,8 @@ namespace CS203XAPI.Controllers
                 {
                     IP = read["IP"].AsString,
                     Tag = read["tag"].AsString,
-                    LastReadTime = read["lastReadTime"].ToString() // Formatear la fecha y hora si es necesario
+                    LastReadTime = read["lastReadTime"].ToString(), // Formatear la fecha y hora si es necesario
+                    AssetName = read.Contains("assetName") ? read["assetName"].AsString : "Unknown" // Incluir el nombre del activo si existe
                 });
             }
 
@@ -457,19 +458,28 @@ namespace CS203XAPI.Controllers
 
             DateTime currentTime = DateTime.Now;
 
+            // Obtener el nombre del activo asociado con el EPC
+            var assetsCollection = _assetsDatabase.GetCollection<BsonDocument>("assets");
+            var assetFilter = Builders<BsonDocument>.Filter.Eq("EPC", epc);
+            var asset = assetsCollection.Find(assetFilter).FirstOrDefault();
+            string assetName = asset != null ? asset["name"].AsString : "Unknown";
+
             if (existingRead == null)
             {
                 var newRead = new BsonDocument
                 {
                     { "IP", ip },
                     { "tag", epc },
-                    { "lastReadTime", currentTime.ToString("dd-MM-yyyy HH:mm") }
+                    { "lastReadTime", currentTime.ToString("dd-MM-yyyy HH:mm") },
+                    { "assetName", assetName } // Agregar el nombre del activo
                 };
                 readsCollection.InsertOne(newRead);
             }
             else
             {
-                var update = Builders<BsonDocument>.Update.Set("lastReadTime", currentTime.ToString("dd-MM-yyyy HH:mm"));
+                var update = Builders<BsonDocument>.Update
+            .Set("lastReadTime", currentTime.ToString("dd-MM-yyyy HH:mm"))
+            .Set("assetName", assetName); // Actualizar el nombre del activo si es necesario
                 readsCollection.UpdateOne(filter, update);
             }
         }
