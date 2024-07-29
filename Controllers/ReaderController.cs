@@ -8,6 +8,8 @@ using System.Threading;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Net.Sockets;
+using MongoDB.Bson;
+using MongoDB.Driver;
 
 namespace CS203XAPI.Controllers
 {
@@ -20,10 +22,16 @@ namespace CS203XAPI.Controllers
         private static object StateChangedLock = new object();
         private static object TagInventoryLock = new object();
         private readonly ILogger<ReaderController> _logger;
+        private readonly IMongoDatabase _assetsDatabase;
+        private readonly IMongoDatabase _antennasDatabase;
+        private static int antCycleEndCount = 0;
+        private const int AntCycleEndLogInterval = 100;
 
-        public ReaderController(ILogger<ReaderController> logger)
+        public ReaderController(ILogger<ReaderController> logger, IMongoClient mongoClient)
         {
             _logger = logger;
+            _assetsDatabase = mongoClient.GetDatabase("assets-app-test");
+            _antennasDatabase = mongoClient.GetDatabase("assets-app-antenas");
         }
 
         [HttpPost("start")]
@@ -37,6 +45,12 @@ namespace CS203XAPI.Controllers
 
             foreach (var ip in request.ReaderIPs)
             {
+                if (string.IsNullOrWhiteSpace(ip) || ip == "0.0.0.0")
+                {
+                    _logger.LogError($"Invalid IP address: {ip}");
+                    continue;
+                }
+
                 try
                 {
                     _logger.LogInformation($"Attempting to connect to reader at IP: {ip}");
@@ -97,7 +111,8 @@ namespace CS203XAPI.Controllers
                 {
                     tagsWithTimestamp.Add(new
                     {
-                        Tag = tag.Key,
+                        IP = tag.Key.Split(':')[0],
+                        Tag = tag.Key.Split(':')[1].Trim(),
                         LastReadTime = tag.Value.ToString("dd-MM-yyyy HH:mm") // Formatear la fecha y hora
                     });
                 }
@@ -166,7 +181,20 @@ namespace CS203XAPI.Controllers
             lock (StateChangedLock)
             {
                 var reader = (HighLevelInterface)sender;
-                _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
+
+                if (e.state == CSLibrary.Constants.RFState.ANT_CYCLE_END)
+                {
+                    antCycleEndCount++;
+                    if (antCycleEndCount % AntCycleEndLogInterval == 0)
+                    {
+                        _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: ANT_CYCLE_END (logged every {AntCycleEndLogInterval} occurrences)");
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation($"State changed for reader at IP: {reader.IPAddress}, new state: {e.state}");
+                }
+
                 switch (e.state)
                 {
                     case CSLibrary.Constants.RFState.IDLE:
@@ -214,6 +242,12 @@ namespace CS203XAPI.Controllers
                 while (retryCount < maxRetries)
                 {
                     retryCount++;
+
+                    if (string.IsNullOrWhiteSpace(reader.IPAddress) || reader.IPAddress == "0.0.0.0")
+                    {
+                        _logger.LogError($"Invalid IP address for reconnection: {reader.IPAddress}");
+                        break;
+                    }
 
                     try
                     {
@@ -281,10 +315,52 @@ namespace CS203XAPI.Controllers
             {
                 var reader = (HighLevelInterface)sender;
                 string tag = $"{reader.IPAddress}: {e.info.epc.ToString()}";
+
+                if (!IsTagInDatabase(e.info.epc.ToString())) return;
+
                 TagsDict[tag] = DateTime.Now; // Actualiza la hora de lectura de la etiqueta
+                UpdateReadsCollection(reader.IPAddress, e.info.epc.ToString());
 
                 // Enviar la etiqueta a través de WebSocket
                 WebSocketController.SendTag(tag);
+            }
+        }
+
+        private bool IsTagInDatabase(string epc)
+        {
+            var assetsCollection = _assetsDatabase.GetCollection<BsonDocument>("assets");
+            var filter = Builders<BsonDocument>.Filter.Eq("EPC", epc);
+            var result = assetsCollection.Find(filter).FirstOrDefault();
+            return result != null;
+        }
+
+        private void UpdateReadsCollection(string ip, string epc)
+        {
+            var readsCollection = _antennasDatabase.GetCollection<BsonDocument>("Reads");
+            var filter = Builders<BsonDocument>.Filter.Eq("tag", epc) & Builders<BsonDocument>.Filter.Eq("IP", ip);
+            var existingRead = readsCollection.Find(filter).FirstOrDefault();
+
+            if (existingRead == null)
+            {
+                var newRead = new BsonDocument
+                {
+                    { "IP", ip },
+                    { "tag", epc },
+                    { "lastReadTime", DateTime.Now.ToString("dd-MM-yyyy HH:mm") }
+                };
+                readsCollection.InsertOne(newRead);
+            }
+            else
+            {
+                var lastReadTimeString = existingRead["lastReadTime"].AsString;
+                if (DateTime.TryParseExact(lastReadTimeString, "dd-MM-yyyy HH:mm", null, System.Globalization.DateTimeStyles.None, out DateTime lastReadTime))
+                {
+                    if ((DateTime.Now - lastReadTime).TotalMinutes >= 5)
+                    {
+                        var update = Builders<BsonDocument>.Update.Set("lastReadTime", DateTime.Now.ToString("dd-MM-yyyy HH:mm"));
+                        readsCollection.UpdateOne(filter, update);
+                    }
+                }
             }
         }
 
