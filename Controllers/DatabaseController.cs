@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System.Collections.Generic;
 using System.Linq;
-
 
 namespace CS203XAPI.Controllers
 {
@@ -26,16 +26,17 @@ namespace CS203XAPI.Controllers
             {
                 Id = a["_id"].ToString(),
                 IP = a["IP"].AsString,
-                GPIO = a.Contains("GPIO") ? a["GPIO"].AsBoolean : false // Default to false if GPIO field is not present
+                GPIO = a.Contains("GPIO") ? a["GPIO"].AsBoolean : false,
+                Location = a.Contains("location") ? a["location"].AsString : "Unknown"
             }).ToList();
             return Ok(result);
         }
 
-        [HttpGet("antennas/{id}")]
-        public IActionResult GetAntenna(string id)
+        [HttpGet("antennas/{ip}")]
+        public IActionResult GetAntennaByIp(string ip)
         {
             var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
-            var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
+            var filter = Builders<BsonDocument>.Filter.Eq("IP", ip);
             var antenna = antennasCollection.Find(filter).FirstOrDefault();
 
             if (antenna == null)
@@ -47,7 +48,8 @@ namespace CS203XAPI.Controllers
             {
                 Id = antenna["_id"].ToString(),
                 IP = antenna["IP"].AsString,
-                GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false // Default to false if GPIO field is not present
+                GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
+                Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown"
             };
 
             return Ok(result);
@@ -60,14 +62,16 @@ namespace CS203XAPI.Controllers
             var antenna = new BsonDocument
             {
                 { "IP", model.IP },
-                { "GPIO", model.GPIO }
+                { "GPIO", model.GPIO },
+                { "location", model.Location }
             };
             antennasCollection.InsertOne(antenna);
-            return CreatedAtAction(nameof(GetAntenna), new { id = antenna["_id"].ToString() }, new
+            return CreatedAtAction(nameof(GetAntennaByIp), new { ip = model.IP }, new
             {
                 Id = antenna["_id"].ToString(),
                 IP = model.IP,
-                GPIO = model.GPIO
+                GPIO = model.GPIO,
+                Location = model.Location
             });
         }
 
@@ -78,7 +82,8 @@ namespace CS203XAPI.Controllers
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
             var update = Builders<BsonDocument>.Update
                 .Set("IP", model.IP)
-                .Set("GPIO", model.GPIO);
+                .Set("GPIO", model.GPIO)
+                .Set("location", model.Location);
             var result = antennasCollection.UpdateOne(filter, update);
 
             if (result.MatchedCount == 0)
@@ -119,10 +124,54 @@ namespace CS203XAPI.Controllers
         }
 
         [HttpGet("exceptions/{id}")]
-        public IActionResult GetException(string id)
+        public IActionResult GetExceptionById(string id)
         {
             var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
+            var exception = exceptionsCollection.Find(filter).FirstOrDefault();
+
+            if (exception == null)
+            {
+                return NotFound();
+            }
+
+            var result = new
+            {
+                Id = exception["_id"].ToString(),
+                EPC = exception.Contains("EPC") ? exception["EPC"].AsString : null,
+                Category = exception.Contains("category") ? exception["category"].AsString : null
+            };
+
+            return Ok(result);
+        }
+
+        [HttpGet("exceptions/epc/{epc}")]
+        public IActionResult GetExceptionByEPC(string epc)
+        {
+            var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
+            var filter = Builders<BsonDocument>.Filter.Eq("EPC", epc);
+            var exception = exceptionsCollection.Find(filter).FirstOrDefault();
+
+            if (exception == null)
+            {
+                return NotFound();
+            }
+
+            var result = new
+            {
+                Id = exception["_id"].ToString(),
+                EPC = exception.Contains("EPC") ? exception["EPC"].AsString : null,
+                Category = exception.Contains("category") ? exception["category"].AsString : null
+            };
+
+            return Ok(result);
+        }
+
+        [HttpGet("exceptions/category/{category}")]
+        public IActionResult GetExceptionByCategory(string category)
+        {
+            var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
+            var filter = Builders<BsonDocument>.Filter.Eq("category", category);
             var exception = exceptionsCollection.Find(filter).FirstOrDefault();
 
             if (exception == null)
@@ -154,7 +203,7 @@ namespace CS203XAPI.Controllers
                 exception.Add("category", model.Category);
             }
             exceptionsCollection.InsertOne(exception);
-            return CreatedAtAction(nameof(GetException), new { id = exception["_id"].ToString() }, new
+            return CreatedAtAction(nameof(GetExceptionById), new { id = exception["_id"].ToString() }, new
             {
                 Id = exception["_id"].ToString(),
                 EPC = model.EPC,
@@ -167,9 +216,18 @@ namespace CS203XAPI.Controllers
         {
             var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
             var filter = Builders<BsonDocument>.Filter.Eq("_id", new ObjectId(id));
-            var update = Builders<BsonDocument>.Update
-                .Set("EPC", model.EPC)
-                .Set("category", model.Category);
+
+            var updateDefinition = new List<UpdateDefinition<BsonDocument>>();
+            if (!string.IsNullOrEmpty(model.EPC))
+            {
+                updateDefinition.Add(Builders<BsonDocument>.Update.Set("EPC", model.EPC));
+            }
+            if (!string.IsNullOrEmpty(model.Category))
+            {
+                updateDefinition.Add(Builders<BsonDocument>.Update.Set("category", model.Category));
+            }
+
+            var update = Builders<BsonDocument>.Update.Combine(updateDefinition);
             var result = exceptionsCollection.UpdateOne(filter, update);
 
             if (result.MatchedCount == 0)
@@ -200,6 +258,7 @@ namespace CS203XAPI.Controllers
     {
         public string IP { get; set; }
         public bool GPIO { get; set; }
+        public string Location { get; set; }
     }
 
     public class ExceptionModel
