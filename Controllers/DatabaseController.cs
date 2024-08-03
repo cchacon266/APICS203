@@ -114,14 +114,32 @@ namespace CS203XAPI.Controllers
         {
             var exceptionsCollection = _antennasDatabase.GetCollection<BsonDocument>("Exceptions");
             var exceptions = exceptionsCollection.Find(new BsonDocument()).ToList();
-            var result = exceptions.Select(e => new
+
+            var epcResults = exceptions
+                .Where(e => e.Contains("EPC"))
+                .Select(e => new
+                {
+                    Id = e["_id"].ToString(),
+                    EPC = e["EPC"].AsString
+                })
+                .ToList();
+
+            var categoryResults = exceptions
+                .Where(e => e.Contains("category"))
+                .Select(e => new
+                {
+                    Id = e["_id"].ToString(),
+                    Category = e["category"].AsString
+                })
+                .ToList();
+
+            return Ok(new
             {
-                Id = e["_id"].ToString(),
-                EPC = e.Contains("EPC") ? e["EPC"].AsString : null,
-                Category = e.Contains("category") ? e["category"].AsString : null
-            }).ToList();
-            return Ok(result);
+                EPC = epcResults,
+                Categories = categoryResults
+            });
         }
+
 
         [HttpGet("exceptions/{id}")]
         public IActionResult GetExceptionById(string id)
@@ -221,10 +239,12 @@ namespace CS203XAPI.Controllers
             if (!string.IsNullOrEmpty(model.EPC))
             {
                 updateDefinition.Add(Builders<BsonDocument>.Update.Set("EPC", model.EPC));
+                updateDefinition.Add(Builders<BsonDocument>.Update.Unset("category")); // Unset category if EPC is set
             }
             if (!string.IsNullOrEmpty(model.Category))
             {
                 updateDefinition.Add(Builders<BsonDocument>.Update.Set("category", model.Category));
+                updateDefinition.Add(Builders<BsonDocument>.Update.Unset("EPC")); // Unset EPC if category is set
             }
 
             var update = Builders<BsonDocument>.Update.Combine(updateDefinition);
@@ -237,6 +257,7 @@ namespace CS203XAPI.Controllers
 
             return NoContent();
         }
+
 
         [HttpDelete("exceptions/{id}")]
         public IActionResult DeleteException(string id)
