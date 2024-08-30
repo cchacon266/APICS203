@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Mvc;
 using MongoDB.Bson;
 using MongoDB.Driver;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace CS203XAPI.Controllers
 {
@@ -16,6 +18,36 @@ namespace CS203XAPI.Controllers
         {
             _antennasDatabase = mongoClient.GetDatabase("assets-app-antenas");
         }
+
+          [HttpGet("report")]
+public IActionResult GetReport()
+{
+    try
+    {
+        var collection = _antennasDatabase.GetCollection<BsonDocument>("Reads");
+        var records = collection.Find(new BsonDocument()).ToList();
+
+        var csv = new StringBuilder();
+        csv.AppendLine("IP,Tag,LastReadTime,AssetName");
+
+        foreach (var record in records)
+        {
+            string ip = record.GetValue("IP", "N/A").AsString;
+            string tag = $"EPC: {record.GetValue("tag", "N/A").AsString}"; // Asegurando que el tag se trate como texto en Excel
+            string lastReadTime = record.GetValue("lastReadTime", "N/A").AsString; // Dejando el formato de tiempo como está
+            string assetName = record.GetValue("assetName", "N/A").AsString;
+
+            csv.AppendLine($"{ip},{tag},{lastReadTime},{assetName}");
+        }
+
+        var csvBytes = Encoding.UTF8.GetBytes(csv.ToString());
+        return File(csvBytes, "text/csv", "report.csv");
+    }
+    catch (Exception ex) // Aquí se declara el tipo de excepción que se captura
+    {
+        return BadRequest(new { message = "Error generating report", error = ex.Message });
+    }
+}
 
         [HttpGet("antennas")]
         public IActionResult GetAntennas()

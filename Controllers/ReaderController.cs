@@ -196,21 +196,71 @@ namespace CS203XAPI.Controllers
             return Ok(tagsWithTimestamp);
         }
 
+// Método para obtener el estado de una antena específica por su IP
+[HttpGet("status")]
+public IActionResult GetAntennaStatus([FromQuery] string ip)
+{
+    if (string.IsNullOrWhiteSpace(ip))
+    {
+        return BadRequest("La IP de la antena es requerida.");
+    }
 
-        // Método para obtener la lista de antenas conectadas
-        [HttpGet("list")]
-        public IActionResult GetAntennas()
+    var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
+    var filter = Builders<BsonDocument>.Filter.Eq("IP", ip);
+    var antenna = antennasCollection.Find(filter).FirstOrDefault();
+
+    if (antenna == null)
+    {
+        return NotFound($"No se encontró una antena con la IP {ip}.");
+    }
+
+    lock (StateChangedLock)
+    {
+        var reader = ReaderList.Find(r => r.IPAddress == ip);
+        bool isConnected = reader != null && IsSocketConnected(ip, 1515);
+
+        var antennaStatus = new
         {
-            var connectedAntennas = new List<string>();
-            lock (StateChangedLock)
+            Id = antenna["_id"].ToString(),
+            IP = ip,
+            GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
+            Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
+            Status = isConnected ? "Connected" : "Disconnected"
+        };
+
+        return Ok(antennaStatus);
+    }
+}
+
+        // Método para obtener la lista de antenas conectadas y su estado
+[HttpGet("list")]
+public IActionResult GetAntennas()
+{
+    var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
+    var allAntennas = antennasCollection.Find(new BsonDocument()).ToList();
+    var antennasWithStatus = new List<object>();
+
+    lock (StateChangedLock)
+    {
+        foreach (var antenna in allAntennas)
+        {
+            var ip = antenna["IP"].AsString;
+            var reader = ReaderList.Find(r => r.IPAddress == ip);
+
+            bool isConnected = reader != null && IsSocketConnected(ip, 1515);
+            
+            antennasWithStatus.Add(new
             {
-                foreach (var reader in ReaderList)
-                {
-                    connectedAntennas.Add(reader.IPAddress);
-                }
-            }
-            return Ok(connectedAntennas);
+                Id = antenna["_id"].ToString(),
+                IP = ip,
+                GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
+                Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
+                Status = isConnected ? "Connected" : "Disconnected"
+            });
         }
+    }
+    return Ok(antennasWithStatus);
+}
 
         // Método para activar/desactivar GPIO
         [HttpPost("gpio")]
