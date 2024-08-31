@@ -4,6 +4,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using MongoDB.Driver;
+using CS203XAPI.Services;
+
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +37,9 @@ builder.Services.AddSingleton(sp =>
     var client = sp.GetRequiredService<IMongoClient>();
     return client.GetDatabase("assets-app-doihi");
 });
+
+// Agregar el LogService
+builder.Services.AddSingleton<ILogService, LogService>();
 
 var app = builder.Build();
 

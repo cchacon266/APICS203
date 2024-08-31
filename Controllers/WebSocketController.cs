@@ -72,31 +72,60 @@ namespace CS203XAPI.Controllers
             }
         }
 
-       public static async void SendTag(string tag)
-{
-    var buffer = Encoding.UTF8.GetBytes(tag);
-    var tasks = new List<Task>();
-
-    lock (_lock)
-    {
-        foreach (var socket in _sockets)
+        // Método para enviar lecturas de tags
+        public static async void SendTag(string tag)
         {
-            if (socket.State == WebSocketState.Open)
+            var buffer = Encoding.UTF8.GetBytes(tag);
+            var tasks = new List<Task>();
+
+            lock (_lock)
             {
-                tasks.Add(socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None));
+                foreach (var socket in _sockets)
+                {
+                    if (socket.State == WebSocketState.Open)
+                    {
+                        tasks.Add(socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None));
+                    }
+                }
+            }
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"Error sending tag via WebSocket: {ex.Message}");
             }
         }
-    }
 
-    try
-    {
-        await Task.WhenAll(tasks);
-    }
-    catch (Exception ex)
-    {
-        // Log the error
-        Console.WriteLine($"Error sending tag via WebSocket: {ex.Message}");
-    }
-}
+        // Método para enviar logs
+        public static async void SendLog(string logMessage)
+        {
+            var buffer = Encoding.UTF8.GetBytes(logMessage);
+            var tasks = new List<Task>();
+
+            lock (_lock)
+            {
+                foreach (var socket in _sockets)
+                {
+                    if (socket.State == WebSocketState.Open)
+                    {
+                        tasks.Add(socket.SendAsync(new ArraySegment<byte>(buffer), WebSocketMessageType.Text, true, CancellationToken.None));
+                    }
+                }
+            }
+
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (Exception ex)
+            {
+                // Log the error
+                Console.WriteLine($"Error sending log via WebSocket: {ex.Message}");
+            }
+        }
     }
 }

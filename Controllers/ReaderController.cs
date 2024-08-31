@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using CSLibrary;
 using CSLibrary.Events;
 using CS203XAPI.Models;
+using CS203XAPI.Services;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading;
@@ -29,15 +30,17 @@ namespace CS203XAPI.Controllers
         private const int AntCycleEndLogInterval = 100;
         private static Dictionary<string, DateTime> LastLoggedTimeDict = new Dictionary<string, DateTime>();
         private const int LogIntervalSeconds = 60; // Intervalo de tiempo en segundos para registrar el mismo mensaje
+        private readonly ILogService _logService; // Inyectar el servicio de logs
 
 
 
         // Constructor que inicializa las bases de datos y el logger
-        public ReaderController(ILogger<ReaderController> logger, IMongoClient mongoClient)
+        public ReaderController(ILogger<ReaderController> logger, IMongoClient mongoClient, ILogService logService)
         {
             _logger = logger;
             _assetsDatabase = mongoClient.GetDatabase("assets-app-doihi");
             _antennasDatabase = mongoClient.GetDatabase("assets-app-antenas");
+            _logService = logService;  // Aquí inyectas el servicio de logs
         }
 
         // Método para iniciar la lectura de las antenas
@@ -47,14 +50,17 @@ namespace CS203XAPI.Controllers
             // Verificar si la lista de IPs de los lectores está vacía
             if (request.ReaderIPs == null || request.ReaderIPs.Count == 0)
             {
-                _logger.LogError("Se requieren las IPs de los lectores");
-                return BadRequest(new { error = "Se requieren las IPs de los lectores" });
+                var errorMessage = "Se requieren las IPs de los lectores";
+                _logger.LogError(errorMessage);
+                _logService.Log("Error", errorMessage, nameof(StartReading));
+                return BadRequest(new { error = errorMessage });
             }
 
             // Intentar conectar cada lector en la lista de IPs
             foreach (var ip in request.ReaderIPs)
             {
                 _logger.LogInformation($"Intentando conectar al lector en IP: {ip}");
+                _logService.Log("Info", $"Intentando conectar al lector en IP: {ip}", nameof(StartReading));
                 HighLevelInterface reader = null;
 
                 try
@@ -67,13 +73,17 @@ namespace CS203XAPI.Controllers
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, $"Error al verificar la conexión del socket a la IP {ip}");
+                        var errorMessage = $"Error al verificar la conexión del socket a la IP {ip}";
+                        _logger.LogError(ex, errorMessage);
+                        _logService.Log("Error", $"{errorMessage}: {ex.Message}", nameof(StartReading));
                         continue;
                     }
 
                     if (!isConnected)
                     {
-                        _logger.LogWarning($"No se puede conectar a la IP {ip} en el puerto 1515");
+                        var warningMessage = $"No se puede conectar a la IP {ip} en el puerto 1515";
+                        _logger.LogWarning(warningMessage);
+                        _logService.Log("Warning", warningMessage, nameof(StartReading));
                         continue;
                     }
 
@@ -81,10 +91,14 @@ namespace CS203XAPI.Controllers
                     var ret = reader.Connect(ip, 40000);
 
                     _logger.LogInformation($"Resultado de la conexión para la IP {ip}: {ret}");
+                    _logService.Log("Info", $"Resultado de la conexión para la IP {ip}: {ret}", nameof(StartReading));
+
                     if (ret != CSLibrary.Constants.Result.OK)
                     {
-                        _logger.LogError($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
-                        throw new Exception($"No se puede conectar al lector con IP: {ip}. Código de error: {ret}");
+                        var errorMessage = $"No se puede conectar al lector con IP: {ip}. Código de error: {ret}";
+                        _logger.LogError(errorMessage);
+                        _logService.Log("Error", errorMessage, nameof(StartReading));
+                        throw new Exception(errorMessage);
                     }
 
                     // Configurar eventos y comenzar la operación de lectura
@@ -93,18 +107,23 @@ namespace CS203XAPI.Controllers
                     InventorySetting(reader);
                     reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
                     ReaderList.Add(reader);
+
                     _logger.LogInformation($"Lector conectado y comenzado en IP: {ip}");
+                    _logService.Log("Info", $"Lector conectado y comenzado en IP: {ip}", nameof(StartReading));
 
                     // Verificar y registrar si la antena tiene GPIO
                     if (HasGPIO(ip))
                     {
-                        _logger.LogInformation($"La antena con IP {ip} tiene semáforo (GPIO).");
+                        var gpioMessage = $"La antena con IP {ip} tiene semáforo (GPIO).";
+                        _logger.LogInformation(gpioMessage);
+                        _logService.Log("Info", gpioMessage, nameof(StartReading));
                         SetGPO0(reader, true); // Encender LED verde si tiene semaforo
                     }
                     else
                     {
-                        _logger.LogInformation($"La antena con IP {ip} no tiene semáforo (GPIO).");
-
+                        var noGpioMessage = $"La antena con IP {ip} no tiene semáforo (GPIO).";
+                        _logger.LogInformation(noGpioMessage);
+                        _logService.Log("Info", noGpioMessage, nameof(StartReading));
                     }
                 }
                 catch (Exception ex)
@@ -118,16 +137,17 @@ namespace CS203XAPI.Controllers
                         catch (Exception disconnectEx)
                         {
                             _logger.LogError(disconnectEx, $"Error desconectando el lector en IP: {ip}");
+                            _logService.Log("Error", $"Error desconectando el lector en IP: {ip}: {disconnectEx.Message}", nameof(StartReading));
                         }
                     }
 
                     _logger.LogError(ex, $"Error al conectar al lector en IP: {ip}");
+                    _logService.Log("Error", $"Error al conectar al lector en IP: {ip}: {ex.Message}", nameof(StartReading));
                 }
             }
 
             return Ok("Lectores iniciados con éxito");
         }
-
 
         // Método para detener la lectura de las antenas
         [HttpPost("stop")]
@@ -135,11 +155,15 @@ namespace CS203XAPI.Controllers
         {
             if (string.IsNullOrWhiteSpace(request.ReaderIP))
             {
-                _logger.LogError("Reader IP is required to stop reading");
-                return BadRequest(new { error = "Reader IP is required" });
+                var errorMessage = "Reader IP is required to stop reading";
+                _logger.LogError(errorMessage);
+                _logService.Log("Error", errorMessage, nameof(StopReading));
+                return BadRequest(new { error = errorMessage });
             }
 
             _logger.LogInformation($"Stopping reader with IP: {request.ReaderIP}");
+            _logService.Log("Info", $"Stopping reader with IP: {request.ReaderIP}", nameof(StopReading));
+
             lock (StateChangedLock)
             {
                 var reader = ReaderList.Find(r => r.IPAddress == request.ReaderIP);
@@ -156,18 +180,25 @@ namespace CS203XAPI.Controllers
                         reader.StopOperation(true);
                         reader.Disconnect();
                         ReaderList.Remove(reader);
-                        _logger.LogInformation($"Reader with IP {request.ReaderIP} stopped successfully");
+
+                        var successMessage = $"Reader with IP {request.ReaderIP} stopped successfully";
+                        _logger.LogInformation(successMessage);
+                        _logService.Log("Info", successMessage, nameof(StopReading));
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, $"Error stopping reader with IP: {request.ReaderIP}");
+                        var errorMessage = $"Error stopping reader with IP: {request.ReaderIP}";
+                        _logger.LogError(ex, errorMessage);
+                        _logService.Log("Error", $"{errorMessage}: {ex.Message}", nameof(StopReading));
                         return StatusCode(500, $"Error stopping reader with IP: {request.ReaderIP}");
                     }
                 }
                 else
                 {
-                    _logger.LogWarning($"Reader with IP {request.ReaderIP} not found");
-                    return NotFound(new { error = $"Reader with IP {request.ReaderIP} not found" });
+                    var warningMessage = $"Reader with IP {request.ReaderIP} not found";
+                    _logger.LogWarning(warningMessage);
+                    _logService.Log("Warning", warningMessage, nameof(StopReading));
+                    return NotFound(new { error = warningMessage });
                 }
             }
             return Ok($"Reader with IP {request.ReaderIP} stopped successfully");
@@ -196,71 +227,71 @@ namespace CS203XAPI.Controllers
             return Ok(tagsWithTimestamp);
         }
 
-// Método para obtener el estado de una antena específica por su IP
-[HttpGet("status")]
-public IActionResult GetAntennaStatus([FromQuery] string ip)
-{
-    if (string.IsNullOrWhiteSpace(ip))
-    {
-        return BadRequest("La IP de la antena es requerida.");
-    }
-
-    var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
-    var filter = Builders<BsonDocument>.Filter.Eq("IP", ip);
-    var antenna = antennasCollection.Find(filter).FirstOrDefault();
-
-    if (antenna == null)
-    {
-        return NotFound($"No se encontró una antena con la IP {ip}.");
-    }
-
-    lock (StateChangedLock)
-    {
-        var reader = ReaderList.Find(r => r.IPAddress == ip);
-        bool isConnected = reader != null && IsSocketConnected(ip, 1515);
-
-        var antennaStatus = new
+        // Método para obtener el estado de una antena específica por su IP
+        [HttpGet("status")]
+        public IActionResult GetAntennaStatus([FromQuery] string ip)
         {
-            Id = antenna["_id"].ToString(),
-            IP = ip,
-            GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
-            Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
-            Status = isConnected ? "Connected" : "Disconnected"
-        };
+            if (string.IsNullOrWhiteSpace(ip))
+            {
+                return BadRequest("La IP de la antena es requerida.");
+            }
 
-        return Ok(antennaStatus);
-    }
-}
+            var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
+            var filter = Builders<BsonDocument>.Filter.Eq("IP", ip);
+            var antenna = antennasCollection.Find(filter).FirstOrDefault();
+
+            if (antenna == null)
+            {
+                return NotFound($"No se encontró una antena con la IP {ip}.");
+            }
+
+            lock (StateChangedLock)
+            {
+                var reader = ReaderList.Find(r => r.IPAddress == ip);
+                bool isConnected = reader != null && IsSocketConnected(ip, 1515);
+
+                var antennaStatus = new
+                {
+                    Id = antenna["_id"].ToString(),
+                    IP = ip,
+                    GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
+                    Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
+                    Status = isConnected ? "Connected" : "Disconnected"
+                };
+
+                return Ok(antennaStatus);
+            }
+        }
 
         // Método para obtener la lista de antenas conectadas y su estado
-[HttpGet("list")]
-public IActionResult GetAntennas()
-{
-    var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
-    var allAntennas = antennasCollection.Find(new BsonDocument()).ToList();
-    var antennasWithStatus = new List<object>();
-
-    lock (StateChangedLock)
-    {
-        foreach (var antenna in allAntennas)
+        [HttpGet("list")]
+        public IActionResult GetAntennas()
         {
-            var ip = antenna["IP"].AsString;
-            var reader = ReaderList.Find(r => r.IPAddress == ip);
+            var antennasCollection = _antennasDatabase.GetCollection<BsonDocument>("Antennas");
+            var allAntennas = antennasCollection.Find(new BsonDocument()).ToList();
+            var antennasWithStatus = new List<object>();
 
-            bool isConnected = reader != null && IsSocketConnected(ip, 1515);
-            
-            antennasWithStatus.Add(new
+            lock (StateChangedLock)
             {
-                Id = antenna["_id"].ToString(),
-                IP = ip,
-                GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
-                Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
-                Status = isConnected ? "Connected" : "Disconnected"
-            });
+                foreach (var antenna in allAntennas)
+                {
+                    var ip = antenna["IP"].AsString;
+                    var reader = ReaderList.Find(r => r.IPAddress == ip);
+
+                    bool isConnected = reader != null && IsSocketConnected(ip, 1515);
+
+                    antennasWithStatus.Add(new
+                    {
+                        Id = antenna["_id"].ToString(),
+                        IP = ip,
+                        GPIO = antenna.Contains("GPIO") ? antenna["GPIO"].AsBoolean : false,
+                        Location = antenna.Contains("location") ? antenna["location"].AsString : "Unknown",
+                        Status = isConnected ? "Connected" : "Disconnected"
+                    });
+                }
+            }
+            return Ok(antennasWithStatus);
         }
-    }
-    return Ok(antennasWithStatus);
-}
 
         // Método para activar/desactivar GPIO
         [HttpPost("gpio")]
@@ -314,17 +345,17 @@ public IActionResult GetAntennas()
             {
                 var reader = (HighLevelInterface)sender;
 
+               // _logger.LogInformation($"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: {e.state}");
+                //_logService.Log("Info", $"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: {e.state}", nameof(ReaderXP_StateChangedEvent));
+
                 if (e.state == CSLibrary.Constants.RFState.ANT_CYCLE_END)
                 {
                     antCycleEndCount++;
                     if (antCycleEndCount % AntCycleEndLogInterval == 0)
                     {
-                        //_logger.LogInformation($"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: FIN_CICLO_ANT (registrado cada {AntCycleEndLogInterval} ocurrencias)");
+                        _logger.LogInformation($"Ciclo de antena finalizado para la IP: {reader.IPAddress}, total ciclos: {antCycleEndCount}");
+                        _logService.Log("Info", $"Ciclo de antena finalizado para la IP: {reader.IPAddress}, total ciclos: {antCycleEndCount}", nameof(ReaderXP_StateChangedEvent));
                     }
-                }
-                else
-                {
-                    _logger.LogInformation($"Estado cambiado para el lector en IP: {reader.IPAddress}, nuevo estado: {e.state}");
                 }
 
                 switch (e.state)
@@ -333,15 +364,20 @@ public IActionResult GetAntennas()
                         HandleIdleState(reader);
                         break;
                     case CSLibrary.Constants.RFState.BUSY:
+                        _logger.LogInformation($"Lector en IP {reader.IPAddress} está ocupado.");
+                        _logService.Log("Info", $"Lector en IP {reader.IPAddress} está ocupado.", nameof(ReaderXP_StateChangedEvent));
                         break;
                     case CSLibrary.Constants.RFState.RESET:
                         HandleResetState(reader);
                         break;
                     case CSLibrary.Constants.RFState.ABORT:
+                        _logger.LogWarning($"Operación abortada en el lector en IP {reader.IPAddress}.");
+                        _logService.Log("Warning", $"Operación abortada en el lector en IP {reader.IPAddress}.", nameof(ReaderXP_StateChangedEvent));
                         break;
                 }
             }
         }
+
 
         // Método para manejar el estado IDLE
         private void HandleIdleState(HighLevelInterface reader)
@@ -372,8 +408,8 @@ public IActionResult GetAntennas()
                 int maxRetries = 2;
                 int retryDelaySeconds = 10;
 
-
                 _logger.LogInformation($"Intentando reconectar el lector en IP: {reader.IPAddress}");
+                _logService.Log("Info", $"Intentando reconectar el lector en IP: {reader.IPAddress}", nameof(HandleResetState));
 
                 while (retryCount < maxRetries)
                 {
@@ -382,6 +418,7 @@ public IActionResult GetAntennas()
                     if (string.IsNullOrWhiteSpace(reader.IPAddress) || reader.IPAddress == "0.0.0.0")
                     {
                         _logger.LogError($"IDirección IP inválida para la reconexión: {reader.IPAddress}");
+                        _logService.Log("Error", $"IDirección IP inválida para la reconexión: {reader.IPAddress}", nameof(HandleResetState));
                         break;
                     }
 
@@ -389,7 +426,8 @@ public IActionResult GetAntennas()
                     {
                         if (!IsSocketConnected(reader.IPAddress, 1515))
                         {
-                            _logger.LogWarning($"Socket is not connected for IP: {reader.IPAddress}, retrying ({retryCount}/{maxRetries})...");
+                            _logger.LogWarning($"Socket no está conectado para IP: {reader.IPAddress}, reintentando ({retryCount}/{maxRetries})...");
+                            _logService.Log("Warning", $"Socket no está conectado para IP: {reader.IPAddress}, reintentando ({retryCount}/{maxRetries})...", nameof(HandleResetState));
                             Thread.Sleep(retryDelaySeconds * 1000);
                             continue;
                         }
@@ -398,6 +436,7 @@ public IActionResult GetAntennas()
                         if (result == CSLibrary.Constants.Result.OK)
                         {
                             _logger.LogInformation($"Reconexión exitosa del lector en IP: {reader.IPAddress}");
+                            _logService.Log("Info", $"Reconexión exitosa del lector en IP: {reader.IPAddress}", nameof(HandleResetState));
                             InventorySetting(reader);
                             reader.StartOperation(CSLibrary.Constants.Operation.TAG_RANGING, false);
 
@@ -412,22 +451,26 @@ public IActionResult GetAntennas()
                         else
                         {
                             _logger.LogWarning($"Intento de reconexión fallido para el lector en IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})");
+                            _logService.Log("Warning", $"Intento de reconexión fallido para el lector en IP: {reader.IPAddress}, result: {result} ({retryCount}/{maxRetries})", nameof(HandleResetState));
                         }
                     }
                     catch (ObjectDisposedException ex)
                     {
                         _logger.LogError(ex, $"ObjectDisposedException capturada durante la reconexión para el lector en IP: {reader.IPAddress}");
+                        _logService.Log("Error", $"ObjectDisposedException capturada durante la reconexión para el lector en IP: {reader.IPAddress}: {ex.Message}", nameof(HandleResetState));
                         break;
                     }
                     catch (Exception ex)
                     {
                         _logger.LogError(ex, $"Excepción capturada durante la reconexión para el lector en IP: {reader.IPAddress}");
+                        _logService.Log("Error", $"Excepción capturada durante la reconexión para el lector en IP: {reader.IPAddress}: {ex.Message}", nameof(HandleResetState));
                     }
 
                     Thread.Sleep(retryDelaySeconds * 1000);
                 }
 
-                _logger.LogInformation($" Intentos de reconexión para el lector en IP: {reader.IPAddress} completados con {retryCount} intentos.");
+                _logger.LogInformation($"Intentos de reconexión para el lector en IP: {reader.IPAddress} completados con {retryCount} intentos.");
+                _logService.Log("Info", $"Intentos de reconexión para el lector en IP: {reader.IPAddress} completados con {retryCount} intentos.", nameof(HandleResetState));
             })
             {
                 IsBackground = true
@@ -439,6 +482,7 @@ public IActionResult GetAntennas()
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Excepción capturada al iniciar el hilo de reconexión para el lector en IP: {reader.IPAddress}");
+                _logService.Log("Error", $"Excepción capturada al iniciar el hilo de reconexión para el lector en IP: {reader.IPAddress}: {ex.Message}", nameof(HandleResetState));
             }
         }
 
@@ -663,7 +707,9 @@ public IActionResult GetAntennas()
                 // Verificar si el EPC es nuevo o si han pasado al menos X minutos desde la última activación del LED rojo
                 if (isNewTag || (DateTime.Now - lastReadTime).TotalMinutes >= 1)
                 {
-                    _logger.LogInformation($"Encendiendo LED rojo para EPC {epc} en IP {reader.IPAddress}.");
+                    var logMessage = $"Encendiendo LED rojo para EPC {epc} en IP {reader.IPAddress}.";
+                    _logger.LogInformation(logMessage);
+                    _logService.Log("Info", logMessage, nameof(HandleGpioActions)); // Guardar en la base de datos
 
                     SetGPO1(reader, true);
                     Task.Delay(15000).ContinueWith(t =>
