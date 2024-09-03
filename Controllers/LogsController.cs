@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using CS203XAPI.Services;
-using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
 
 namespace CS203XAPI.Controllers
 {
@@ -15,16 +16,24 @@ namespace CS203XAPI.Controllers
             _logService = logService;
         }
 
-        // Endpoint para obtener todos los logs
-        [HttpGet]
+        // Endpoint para obtener todos los logs con fechas formateadas
+        [HttpGet("list")]
         public IActionResult GetAllLogs()
         {
             var logs = _logService.GetAllLogs();
-            return Ok(logs);
+            var formattedLogs = logs.Select(log => new
+            {
+                log.Level,
+                Message = log.Message,
+                Timestamp = log.Timestamp.ToString("dd-MM-yyyy HH:mm:ss", CultureInfo.InvariantCulture),
+                log.Source
+            }).ToList();
+
+            return Ok(formattedLogs);
         }
 
         // Endpoint para eliminar todos los logs
-        [HttpDelete]
+        [HttpDelete("clear")]
         public IActionResult ClearLogs()
         {
             _logService.ClearLogs();

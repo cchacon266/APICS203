@@ -27,7 +27,7 @@ namespace CS203XAPI.Controllers
         private readonly IMongoDatabase _assetsDatabase;
         private readonly IMongoDatabase _antennasDatabase;
         private static int antCycleEndCount = 0;
-        private const int AntCycleEndLogInterval = 100;
+        private const int AntCycleEndLogInterval = 10000;
         private static Dictionary<string, DateTime> LastLoggedTimeDict = new Dictionary<string, DateTime>();
         private const int LogIntervalSeconds = 60; // Intervalo de tiempo en segundos para registrar el mismo mensaje
         private readonly ILogService _logService; // Inyectar el servicio de logs

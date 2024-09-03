@@ -29,7 +29,7 @@ namespace CS203XAPI.Services
         {
             var logEntry = new LogEntry
             {
-                Timestamp = DateTime.Now,
+                Timestamp = DateTime.UtcNow, // Guardar en UTC
                 Level = level,
                 Message = message,
                 Source = source
@@ -44,7 +44,17 @@ namespace CS203XAPI.Services
 
         public List<LogEntry> GetAllLogs()
         {
-            return _logsCollection.Find(new BsonDocument()).SortByDescending(log => log.Timestamp).ToList();
+            var logs = _logsCollection.Find(new BsonDocument())
+                                      .SortByDescending(log => log.Timestamp)
+                                      .ToList();
+
+            // Convertir la hora a la hora local antes de devolverla
+            foreach (var log in logs)
+            {
+                log.Timestamp = log.Timestamp.ToLocalTime();
+            }
+
+            return logs;
         }
 
         public void ClearLogs()
